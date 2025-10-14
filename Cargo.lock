@@ -204,6 +204,7 @@ dependencies = [
  "barge",
  "bytes",
  "clap",
+ "futures",
  "tokio",
  "tracing",
  "tracing-subscriber",

@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand};
+use futures::future::join_all;
 use std::net::SocketAddrV4;
 use std::time::Instant;
+use tracing::info;
 
 use barge::Barge;
 
@@ -23,7 +25,7 @@ async fn main() -> anyhow::Result<()> {
 
     match args.command {
         SubCommand::New { port } => {
-            tracing::info!("Starting new cluster on {}", port);
+            info!("Starting new cluster on {}", port);
             let _barge = Barge::new(1, port);
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(60)).await;
@@ -31,18 +33,20 @@ async fn main() -> anyhow::Result<()> {
         }
         SubCommand::Join { port, join_addr } => {
             let join_addr: SocketAddrV4 = join_addr.parse()?;
-            tracing::info!("Joining cluster at {} from {}", join_addr, port);
+            info!("Joining cluster at {} from {}", join_addr, port);
             let barge = Barge::join(1, port, join_addr);
-            let num = 10_000;
+            let num = 100_000;
+            let proposals = (0..num).map(|_| barge.propose(b"Hello, world!".to_vec()));
             let start = Instant::now();
-            for _ in 0..num {
-                let _ = barge.propose(b"Hello, world!".to_vec()).await;
-            }
+            join_all(proposals).await;
             let elapsed = start.elapsed();
-            tracing::info!("Sent {} proposals in {:?}", num, elapsed);
-            loop {
-                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
-            }
+            let tps = elapsed / num;
+            let rps = num as f64 / elapsed.as_secs_f64();
+            info!(
+                "Proposed {} entries in {:.2?} ({:.2?} per entry, {:.2} entries/sec)",
+                num, elapsed, tps, rps
+            );
+            loop {}
         }
     }
 }
