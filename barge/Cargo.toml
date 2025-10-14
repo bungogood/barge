@@ -9,6 +9,7 @@ chrono = "0.4.42"
 flatbuffers = "25.9.23"
 futures = "0.3.31"
 rand = "0.9.2"
+thiserror = "2.0.17"
 tokio = { version = "1.47.1", features = [
     "sync",
     "time",
@@ -19,5 +20,3 @@ tokio = { version = "1.47.1", features = [
 tracing = "0.1.41"
 tracing-subscriber = "0.3.20"
 uuid = { version = "1.18.1", features = ["v4"] }
-
-[dev-dependencies]
