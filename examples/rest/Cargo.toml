@@ -1,0 +1,13 @@
+[package]
+name = "rest"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+barge = { path = "../../barge" }
+warp = "0.3"
+bytes = "1.4"
+tokio = { version = "1.47.1", features = ["full"] }
+anyhow = "1.0.100"
+tracing = "0.1.41"
+tracing-subscriber = "0.3.20"

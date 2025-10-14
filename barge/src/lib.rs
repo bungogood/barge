@@ -105,7 +105,7 @@ impl<'a> BargeCore<'a> {
 
         loop {
             tokio::select! {
-                _ = self.collect_proposals(&mut proposal_buf, proposal_limit, Duration::from_micros(50)) => {
+                _ = self.collect_proposals(&mut proposal_buf, proposal_limit, Duration::from_micros(100)) => {
                     if !proposal_buf.is_empty() {
                         self.propose(&mut proposal_buf, &socket).await?;
                         proposal_buf.clear();

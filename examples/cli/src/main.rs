@@ -33,7 +33,7 @@ async fn main() -> anyhow::Result<()> {
             let join_addr: SocketAddrV4 = join_addr.parse()?;
             tracing::info!("Joining cluster at {} from {}", join_addr, port);
             let barge = Barge::join(1, port, join_addr);
-            let num = 100_0;
+            let num = 10_000;
             let start = Instant::now();
             for _ in 0..num {
                 let _ = barge.propose(b"Hello, world!".to_vec()).await;
