@@ -1,0 +1,53 @@
+namespace Barge;
+
+struct Uuid {
+  bytes:[ubyte:16];
+}
+
+union Event {
+    AppendEntriesReq,
+    AppendEntriesRes,
+    ElectionReq,
+    ElectionRes
+}
+
+table LogEntry {
+    index:uint64;
+    term:uint64;
+    data:[ubyte];
+}
+
+table AppendEntriesReq {
+    term:uint64;
+    commit_index:uint64;
+    prev_index:uint64;
+    prev_term:uint64;
+    entries:[LogEntry];
+}
+
+table AppendEntriesRes {
+    term:uint64;
+    append_index:uint64;
+    commit_index:uint64;
+    success:bool;
+}
+
+table ElectionReq {
+    term:uint64;
+    candidate_id:uint64;
+    last_log_index:uint64;
+    last_log_term:uint64;
+}
+
+table ElectionRes {
+    term:uint64;
+    vote_granted:bool;
+}
+
+table Message {
+    sender:uint64;
+    timestamp:int64;
+    event:Event;
+}
+
+root_type Message;
