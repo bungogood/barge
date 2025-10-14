@@ -1016,6 +1016,8 @@ dependencies = [
  "anyhow",
  "barge",
  "bytes",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
