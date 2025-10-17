@@ -14,7 +14,7 @@ union Event {
 table LogEntry {
     index:uint64;
     term:uint64;
-    data:[ubyte];
+    data:[ubyte]; // there are 2 types of data: command or configuration change
 }
 
 table AppendEntriesReq {
@@ -35,8 +35,8 @@ table AppendEntriesRes {
 table ElectionReq {
     term:uint64;
     candidate_id:uint64;
-    last_log_index:uint64;
-    last_log_term:uint64;
+    prev_index:uint64;
+    prev_term:uint64;
 }
 
 table ElectionRes {

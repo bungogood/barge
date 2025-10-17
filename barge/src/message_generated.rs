@@ -775,8 +775,8 @@ pub mod barge {
     impl<'a> ElectionReq<'a> {
         pub const VT_TERM: flatbuffers::VOffsetT = 4;
         pub const VT_CANDIDATE_ID: flatbuffers::VOffsetT = 6;
-        pub const VT_LAST_LOG_INDEX: flatbuffers::VOffsetT = 8;
-        pub const VT_LAST_LOG_TERM: flatbuffers::VOffsetT = 10;
+        pub const VT_PREV_INDEX: flatbuffers::VOffsetT = 8;
+        pub const VT_PREV_TERM: flatbuffers::VOffsetT = 10;
 
         #[inline]
         pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -793,8 +793,8 @@ pub mod barge {
             args: &'args ElectionReqArgs,
         ) -> flatbuffers::WIPOffset<ElectionReq<'bldr>> {
             let mut builder = ElectionReqBuilder::new(_fbb);
-            builder.add_last_log_term(args.last_log_term);
-            builder.add_last_log_index(args.last_log_index);
+            builder.add_prev_term(args.prev_term);
+            builder.add_prev_index(args.prev_index);
             builder.add_candidate_id(args.candidate_id);
             builder.add_term(args.term);
             builder.finish()
@@ -819,24 +819,24 @@ pub mod barge {
             }
         }
         #[inline]
-        pub fn last_log_index(&self) -> u64 {
+        pub fn prev_index(&self) -> u64 {
             // Safety:
             // Created from valid Table for this object
             // which contains a valid value in this slot
             unsafe {
                 self._tab
-                    .get::<u64>(ElectionReq::VT_LAST_LOG_INDEX, Some(0))
+                    .get::<u64>(ElectionReq::VT_PREV_INDEX, Some(0))
                     .unwrap()
             }
         }
         #[inline]
-        pub fn last_log_term(&self) -> u64 {
+        pub fn prev_term(&self) -> u64 {
             // Safety:
             // Created from valid Table for this object
             // which contains a valid value in this slot
             unsafe {
                 self._tab
-                    .get::<u64>(ElectionReq::VT_LAST_LOG_TERM, Some(0))
+                    .get::<u64>(ElectionReq::VT_PREV_TERM, Some(0))
                     .unwrap()
             }
         }
@@ -852,8 +852,8 @@ pub mod barge {
             v.visit_table(pos)?
                 .visit_field::<u64>("term", Self::VT_TERM, false)?
                 .visit_field::<u64>("candidate_id", Self::VT_CANDIDATE_ID, false)?
-                .visit_field::<u64>("last_log_index", Self::VT_LAST_LOG_INDEX, false)?
-                .visit_field::<u64>("last_log_term", Self::VT_LAST_LOG_TERM, false)?
+                .visit_field::<u64>("prev_index", Self::VT_PREV_INDEX, false)?
+                .visit_field::<u64>("prev_term", Self::VT_PREV_TERM, false)?
                 .finish();
             Ok(())
         }
@@ -861,8 +861,8 @@ pub mod barge {
     pub struct ElectionReqArgs {
         pub term: u64,
         pub candidate_id: u64,
-        pub last_log_index: u64,
-        pub last_log_term: u64,
+        pub prev_index: u64,
+        pub prev_term: u64,
     }
     impl<'a> Default for ElectionReqArgs {
         #[inline]
@@ -870,8 +870,8 @@ pub mod barge {
             ElectionReqArgs {
                 term: 0,
                 candidate_id: 0,
-                last_log_index: 0,
-                last_log_term: 0,
+                prev_index: 0,
+                prev_term: 0,
             }
         }
     }
@@ -891,14 +891,14 @@ pub mod barge {
                 .push_slot::<u64>(ElectionReq::VT_CANDIDATE_ID, candidate_id, 0);
         }
         #[inline]
-        pub fn add_last_log_index(&mut self, last_log_index: u64) {
+        pub fn add_prev_index(&mut self, prev_index: u64) {
             self.fbb_
-                .push_slot::<u64>(ElectionReq::VT_LAST_LOG_INDEX, last_log_index, 0);
+                .push_slot::<u64>(ElectionReq::VT_PREV_INDEX, prev_index, 0);
         }
         #[inline]
-        pub fn add_last_log_term(&mut self, last_log_term: u64) {
+        pub fn add_prev_term(&mut self, prev_term: u64) {
             self.fbb_
-                .push_slot::<u64>(ElectionReq::VT_LAST_LOG_TERM, last_log_term, 0);
+                .push_slot::<u64>(ElectionReq::VT_PREV_TERM, prev_term, 0);
         }
         #[inline]
         pub fn new(
@@ -922,8 +922,8 @@ pub mod barge {
             let mut ds = f.debug_struct("ElectionReq");
             ds.field("term", &self.term());
             ds.field("candidate_id", &self.candidate_id());
-            ds.field("last_log_index", &self.last_log_index());
-            ds.field("last_log_term", &self.last_log_term());
+            ds.field("prev_index", &self.prev_index());
+            ds.field("prev_term", &self.prev_term());
             ds.finish()
         }
     }

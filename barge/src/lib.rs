@@ -1,5 +1,5 @@
 use flatbuffers::root;
-use rand::seq::index;
+use rand::Rng;
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::net::{Ipv4Addr, SocketAddrV4};
@@ -95,6 +95,7 @@ enum BargeRole {
     Follower,
     Leader,
     Candidate,
+    Learner,
 }
 
 struct BargeConfig {
@@ -134,30 +135,83 @@ impl Inflight {
     }
 }
 
+type NodeId = u64;
+
+struct BargeConstants {
+    election_timeout_min: u64,
+    election_timeout_max: u64,
+    heartbeat_interval: u64,
+}
+
+impl BargeConstants {
+    fn new() -> Self {
+        Self {
+            election_timeout_min: 150,
+            election_timeout_max: 300,
+            heartbeat_interval: 50,
+        }
+    }
+
+    fn rand_election_duration(&self) -> Duration {
+        let mut rng = rand::rng();
+        let millis = rng.random_range(self.election_timeout_min..self.election_timeout_max);
+        Duration::from_millis(millis)
+    }
+
+    fn rand_election_deadline(&self) -> tokio::time::Instant {
+        tokio::time::Instant::now() + self.rand_election_duration()
+    }
+
+    fn heartbeat_duration(&self) -> Duration {
+        Duration::from_millis(self.heartbeat_interval)
+    }
+}
+
 struct BargeCore<'a> {
+    consts: BargeConstants,
     role: BargeRole,
     propose_tx: mpsc::Sender<Proposal>,
     propose_rx: mpsc::Receiver<Proposal>,
-    id: u64,
+    id: NodeId,
     port: u16,
-    nodes: Vec<SocketAddrV4>,
-    index: u64,
+    nodes: BTreeMap<SocketAddrV4, u64>, // node address to next index
+    term: u64,
+    append_index: u64,
+    commit_index: u64,
     builder: flatbuffers::FlatBufferBuilder<'a>,
     inflight: BTreeMap<u64, Inflight>,
+    votes_received: usize,
+    voted_for: Option<NodeId>,
+    election_deadline: Option<tokio::time::Instant>,
 }
 
 impl<'a> BargeCore<'a> {
     fn new(config: BargeConfig) -> Self {
+        let consts = BargeConstants::new();
+        let nodes = BTreeMap::from_iter(
+            config.nodes.iter().map(|&addr| (addr, 0u64)), // next index starts at 0
+        );
+        let (role, election_deadline) = if nodes.is_empty() {
+            (BargeRole::Leader, None)
+        } else {
+            (BargeRole::Follower, Some(consts.rand_election_deadline()))
+        };
         Self {
-            role: BargeRole::Leader,
+            consts,
+            role,
             id: config.id,
             port: config.port,
-            nodes: config.nodes,
+            nodes,
             propose_tx: config.propose_tx,
             propose_rx: config.propose_rx,
-            index: 0,
+            term: 0,
+            append_index: 0,
+            commit_index: 0,
+            votes_received: 0,
             builder: flatbuffers::FlatBufferBuilder::new(),
             inflight: BTreeMap::new(),
+            voted_for: None,
+            election_deadline,
         }
     }
 
@@ -169,12 +223,13 @@ impl<'a> BargeCore<'a> {
         let mut buf = [0u8; 65536];
         let socket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, self.port)).await?;
 
-        let proposal_limit = 100;
+        let proposal_limit = 1;
         let mut proposal_buf = Vec::with_capacity(proposal_limit);
 
         loop {
+            let deadline = self.election_deadline;
             tokio::select! {
-                _ = self.collect_proposals(&mut proposal_buf, proposal_limit, Duration::from_micros(100)) => {
+                _ = self.collect_proposals(&mut proposal_buf, proposal_limit, Duration::from_micros(250)) => {
                     if !proposal_buf.is_empty() {
                         self.propose(&mut proposal_buf, &socket).await?;
                         proposal_buf.clear();
@@ -184,8 +239,44 @@ impl<'a> BargeCore<'a> {
                 Ok((len, addr)) = socket.recv_from(&mut buf) => {
                     self.handle_message(&buf[..len], &addr, &socket).await?;
                 }
+
+                _ = Self::election_wait(deadline) => {
+                    self.start_election(&socket).await?;
+                }
             }
         }
+    }
+
+    async fn election_wait(deadline: Option<tokio::time::Instant>) {
+        match deadline {
+            Some(d) => tokio::time::sleep_until(d).await,
+            None => futures::future::pending::<()>().await,
+        }
+    }
+
+    async fn start_election(&mut self, socket: &UdpSocket) -> anyhow::Result<()> {
+        self.term += 1;
+        self.role = BargeRole::Candidate;
+        self.votes_received = 1;
+        self.voted_for = Some(self.id);
+        info!("Becoming candidate for term {}", self.term);
+        let election_req = fb::ElectionReq::create(
+            &mut self.builder,
+            &fb::ElectionReqArgs {
+                term: self.term,
+                candidate_id: self.id,
+                prev_index: self.append_index,
+                prev_term: self.term,
+            },
+        );
+        self.build_message(fb::Event::ElectionReq, election_req.as_union_value());
+
+        for (node, _) in &self.nodes {
+            info!("Sending ElectionReq to {}", node);
+            let _len = socket.send_to(self.builder.finished_data(), node).await?;
+        }
+        self.builder.reset();
+        Ok(())
     }
 
     async fn collect_proposals(&mut self, buf: &mut Vec<Proposal>, max: usize, timeout: Duration) {
@@ -224,21 +315,49 @@ impl<'a> BargeCore<'a> {
         match event_type {
             fb::Event::ElectionReq => {
                 let req = msg.event_as_election_req().unwrap();
-                info!(%addr, term = req.term(), "ElectionReq");
+                if self.term < req.term() {
+                    info!(%addr, term = req.term(), "Updating term from ElectionReq");
+                    self.term = req.term();
+                    self.role = BargeRole::Follower;
+                    self.election_deadline = Some(self.consts.rand_election_deadline());
+                } else {
+                    warn!(%addr, term = req.term(), "Stale ElectionReq");
+                }
+            }
+            fb::Event::ElectionRes => {
+                let res = msg.event_as_election_res().unwrap();
+                if self.role != BargeRole::Candidate {
+                    warn!(%addr, "Received ElectionRes but not a candidate");
+                    return Ok(());
+                } else if self.term < res.term() {
+                    info!(%addr, term = res.term(), "Updating term from ElectionRes");
+                    self.term = res.term();
+                    self.role = BargeRole::Follower;
+                    self.election_deadline = Some(self.consts.rand_election_deadline());
+                    return Ok(());
+                } else if self.term > res.term() {
+                    warn!(%addr, term = res.term(), "Stale ElectionRes");
+                    return Ok(());
+                } else if res.vote_granted() {
+                    self.votes_received += 1;
+                    info!(%addr, term = res.term(), vote_granted = res.vote_granted(), "ElectionRes");
+                } else {
+                    warn!(%addr, term = res.term(), vote_granted = res.vote_granted(), "ElectionRes");
+                }
             }
             fb::Event::AppendEntriesReq => {
                 let req = msg.event_as_append_entries_req().unwrap();
-                let num = req.entries().map_or(0, |e| e.len());
-                self.index += num as u64;
-                info!(%addr, term = req.term(), entries = num, index = self.index, len = buf.len(), "AppendEntriesReq");
-                // immediately reply with success for now
                 self.handle_append_entries_request(&req, addr, socket)
                     .await?;
             }
             fb::Event::AppendEntriesRes => {
                 let res = msg.event_as_append_entries_res().unwrap();
                 info!(%addr, term = res.term(), index = res.append_index(), success = res.success(), "AppendEntriesRes");
-                self.handle_append_entries_response(&res).await?;
+                // self.handle_append_entries_response(&res, addr)?;
+                match self.handle_append_entries_response(&res, addr) {
+                    Ok(()) => {}
+                    Err(e) => warn!(%addr, "Error handling AppendEntriesRes: {}", e),
+                }
             }
             _ => {
                 warn!(%addr, "Unknown or unhandled message");
@@ -254,6 +373,18 @@ impl<'a> BargeCore<'a> {
         addr: &SocketAddr,
         socket: &UdpSocket,
     ) -> anyhow::Result<()> {
+        if self.term > req.term() {
+            warn!(%addr, term = req.term(), "Stale AppendEntriesReq");
+            return Ok(());
+        } else if self.term < req.term() {
+            info!(%addr, term = req.term(), "Updating term from AppendEntriesReq");
+            self.term = req.term();
+            self.role = BargeRole::Follower;
+        }
+
+        let num = req.entries().map_or(0, |e| e.len());
+        self.append_index += num as u64;
+        info!(%addr, term = req.term(), entries = num, index = self.append_index, prev = req.prev_index(), "AppendEntriesReq");
         let success = true; // TODO: actually handle log replication
         let append_index = req.prev_index() + req.entries().map_or(0, |e| e.len()) as u64;
         let reply = fb::AppendEntriesRes::create(
@@ -265,40 +396,47 @@ impl<'a> BargeCore<'a> {
                 success,
             },
         );
-        let msg = fb::Message::create(
-            &mut self.builder,
-            &fb::MessageArgs {
-                sender: self.id,
-                timestamp: 0,
-                event_type: fb::Event::AppendEntriesRes,
-                event: Some(reply.as_union_value()),
-            },
-        );
-        self.builder.finish(msg, None);
+        self.build_message(fb::Event::AppendEntriesRes, reply.as_union_value());
         socket.send_to(self.builder.finished_data(), addr).await?;
         self.builder.reset();
         Ok(())
     }
 
-    async fn handle_append_entries_response(
+    fn handle_append_entries_response(
         &mut self,
         res: &fb::AppendEntriesRes<'_>,
+        addr: &SocketAddr,
     ) -> anyhow::Result<()> {
         if !res.success() {
             warn!("AppendEntriesRes indicates failure");
             return Ok(());
         }
+        let num_nodes = self.nodes.len() + 1; // +1 for self
+        let addr = match addr {
+            SocketAddr::V4(a) => a,
+            SocketAddr::V6(_) => {
+                warn!("Ignoring AppendEntriesRes from IPv6 address: {}", addr);
+                return Ok(());
+            }
+        };
+        let prev_index = self
+            .nodes
+            .get_mut(addr)
+            .ok_or_else(|| anyhow::anyhow!("AppendEntriesRes from unknown node: {}", addr))?;
         let append_index = res.append_index();
         info!("AppendEntriesRes for index {}", append_index);
         // for entry in .. if count = len(nodes) + 1 then notify success and remove from inflight
-        if let Some(inflight) = self.inflight.get_mut(&append_index) {
-            inflight.count += 1;
-            if inflight.count >= self.nodes.len() + 1 {
-                let notify = std::mem::replace(&mut inflight.notify, None);
-                if let Some(notify) = notify {
-                    let _ = notify.send(Ok(()));
+        for i in *prev_index + 1..=append_index {
+            if let Some(inflight) = self.inflight.get_mut(&i) {
+                inflight.count += 1;
+                if inflight.count >= num_nodes {
+                    let notify = std::mem::replace(&mut inflight.notify, None);
+                    if let Some(notify) = notify {
+                        info!("Proposal for index {} committed", i);
+                        let _ = notify.send(Ok(()));
+                    }
+                    self.inflight.remove(&i);
                 }
-                self.inflight.remove(&append_index);
             }
         }
         Ok(())
@@ -309,6 +447,11 @@ impl<'a> BargeCore<'a> {
         proposals: &mut Vec<Proposal>,
         socket: &UdpSocket,
     ) -> anyhow::Result<()> {
+        info!(
+            "Proposing {} entries: {}",
+            proposals.len(),
+            self.propose_rx.len()
+        );
         if self.role != BargeRole::Leader {
             for proposal in proposals.iter_mut() {
                 let notify = std::mem::replace(&mut proposal.notify, None);
@@ -323,13 +466,15 @@ impl<'a> BargeCore<'a> {
 
         let entries: Vec<_> = proposals
             .iter()
-            .map(|p| {
+            .enumerate()
+            .map(|(i, p)| {
+                let entry_index = self.append_index + i as u64 + 1;
                 let data = self.builder.create_vector(&p.data);
                 fb::LogEntry::create(
                     &mut self.builder,
                     &fb::LogEntryArgs {
-                        term: 0,
-                        index: 0,
+                        term: self.term,
+                        index: entry_index,
                         data: Some(data),
                     },
                 )
@@ -338,27 +483,18 @@ impl<'a> BargeCore<'a> {
 
         let entries = self.builder.create_vector(&entries);
 
-        let append_entries_req = fb::AppendEntriesReq::create(
+        let req = fb::AppendEntriesReq::create(
             &mut self.builder,
             &fb::AppendEntriesReqArgs {
                 term: 0,
                 commit_index: 0,
-                prev_index: self.index,
+                prev_index: self.append_index,
                 prev_term: 0,
                 entries: Some(entries),
             },
         );
-        let msg = fb::Message::create(
-            &mut self.builder,
-            &fb::MessageArgs {
-                sender: self.id,
-                timestamp: 0,
-                event_type: fb::Event::AppendEntriesReq,
-                event: Some(append_entries_req.as_union_value()),
-            },
-        );
-        self.builder.finish(msg, None);
-        for node in &self.nodes {
+        self.build_message(fb::Event::AppendEntriesReq, req.as_union_value());
+        for (node, _) in &self.nodes {
             info!(
                 "Sending {} bytes to {}...",
                 self.builder.finished_data().len(),
@@ -372,12 +508,33 @@ impl<'a> BargeCore<'a> {
             let notify = std::mem::replace(&mut proposal.notify, None);
             if let Some(notify) = notify {
                 let inflight = Inflight::new(notify);
-                self.index += 1;
-                self.inflight.insert(self.index, inflight);
+                self.append_index += 1;
+                self.inflight.insert(self.append_index, inflight);
             }
         }
         Ok(())
     }
+
+    fn build_message(
+        &mut self,
+        event_type: fb::Event,
+        event: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>,
+    ) {
+        let msg = fb::Message::create(
+            &mut self.builder,
+            &fb::MessageArgs {
+                sender: self.id,
+                timestamp: timestamp_nanos(),
+                event_type,
+                event: Some(event.as_union_value()),
+            },
+        );
+        self.builder.finish(msg, None);
+    }
+}
+
+fn timestamp_nanos() -> i64 {
+    chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
 }
 
 // Re-export generated FlatBuffers module so consumers of the library can use it if needed
