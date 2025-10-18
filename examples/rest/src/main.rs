@@ -1,5 +1,6 @@
 use std::net::Ipv4Addr;
 use std::net::SocketAddrV4;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -41,11 +42,16 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     tracing_subscriber::fmt().init();
 
+    let dir = PathBuf::from(format!("data/node-{}", args.port));
+
     let barge = match args.command {
-        SubCommand::New { addr } => Barge::new(addr.parse()?),
-        SubCommand::Join { addr, join_addr } => {
-            Barge::join(addr.parse()?, vec![join_addr.parse()?])
-        }
+        SubCommand::New { addr } => Barge::new(Some(args.port), dir, addr.parse()?),
+        SubCommand::Join { addr, join_addr } => Barge::join(
+            Some(args.port),
+            dir,
+            addr.parse()?,
+            vec![join_addr.parse()?],
+        ),
     };
     let barge = Arc::new(barge);
 
@@ -60,7 +66,7 @@ async fn main() -> anyhow::Result<()> {
             match barge.propose(data.clone()).await {
                 Ok(()) => {
                     let resp = Success { data };
-                    info!("Proposal accepted");
+                    // info!("Proposal accepted");
                     let json = warp::reply::json(&resp);
                     Ok::<_, warp::Rejection>(
                         warp::reply::with_status(json, StatusCode::OK).into_response(),

@@ -135,150 +135,59 @@ pub mod barge {
     impl flatbuffers::SimpleToVerifyInSlice for Event {}
     pub struct EventUnionTableOffset {}
 
-    #[deprecated(
-        since = "2.0.0",
-        note = "Use associated constants instead. This will no longer be generated in 2021."
-    )]
-    pub const ENUM_MIN_ENTRY: u8 = 0;
-    #[deprecated(
-        since = "2.0.0",
-        note = "Use associated constants instead. This will no longer be generated in 2021."
-    )]
-    pub const ENUM_MAX_ENTRY: u8 = 2;
-    #[deprecated(
-        since = "2.0.0",
-        note = "Use associated constants instead. This will no longer be generated in 2021."
-    )]
-    #[allow(non_camel_case_types)]
-    pub const ENUM_VALUES_ENTRY: [Entry; 3] =
-        [Entry::NONE, Entry::Command, Entry::MembershipChange];
-
-    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-    #[repr(transparent)]
-    pub struct Entry(pub u8);
-    #[allow(non_upper_case_globals)]
-    impl Entry {
-        pub const NONE: Self = Self(0);
-        pub const Command: Self = Self(1);
-        pub const MembershipChange: Self = Self(2);
-
-        pub const ENUM_MIN: u8 = 0;
-        pub const ENUM_MAX: u8 = 2;
-        pub const ENUM_VALUES: &'static [Self] =
-            &[Self::NONE, Self::Command, Self::MembershipChange];
-        /// Returns the variant's name or "" if unknown.
-        pub fn variant_name(self) -> Option<&'static str> {
-            match self {
-                Self::NONE => Some("NONE"),
-                Self::Command => Some("Command"),
-                Self::MembershipChange => Some("MembershipChange"),
-                _ => None,
-            }
-        }
-    }
-    impl core::fmt::Debug for Entry {
-        fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-            if let Some(name) = self.variant_name() {
-                f.write_str(name)
-            } else {
-                f.write_fmt(format_args!("<UNKNOWN {:?}>", self.0))
-            }
-        }
-    }
-    impl<'a> flatbuffers::Follow<'a> for Entry {
-        type Inner = Self;
-        #[inline]
-        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-            let b = flatbuffers::read_scalar_at::<u8>(buf, loc);
-            Self(b)
-        }
-    }
-
-    impl flatbuffers::Push for Entry {
-        type Output = Entry;
-        #[inline]
-        unsafe fn push(&self, dst: &mut [u8], _written_len: usize) {
-            flatbuffers::emplace_scalar::<u8>(dst, self.0);
-        }
-    }
-
-    impl flatbuffers::EndianScalar for Entry {
-        type Scalar = u8;
-        #[inline]
-        fn to_little_endian(self) -> u8 {
-            self.0.to_le()
-        }
-        #[inline]
-        #[allow(clippy::wrong_self_convention)]
-        fn from_little_endian(v: u8) -> Self {
-            let b = u8::from_le(v);
-            Self(b)
-        }
-    }
-
-    impl<'a> flatbuffers::Verifiable for Entry {
-        #[inline]
-        fn run_verifier(
-            v: &mut flatbuffers::Verifier,
-            pos: usize,
-        ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-            use self::flatbuffers::Verifiable;
-            u8::run_verifier(v, pos)
-        }
-    }
-
-    impl flatbuffers::SimpleToVerifyInSlice for Entry {}
-    pub struct EntryUnionTableOffset {}
-
-    // struct Uuid, aligned to 1
+    // struct Metadata, aligned to 8
     #[repr(transparent)]
     #[derive(Clone, Copy, PartialEq)]
-    pub struct Uuid(pub [u8; 16]);
-    impl Default for Uuid {
+    pub struct Metadata(pub [u8; 32]);
+    impl Default for Metadata {
         fn default() -> Self {
-            Self([0; 16])
+            Self([0; 32])
         }
     }
-    impl core::fmt::Debug for Uuid {
+    impl core::fmt::Debug for Metadata {
         fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-            f.debug_struct("Uuid")
-                .field("bytes", &self.bytes())
+            f.debug_struct("Metadata")
+                .field("id", &self.id())
+                .field("voted_for", &self.voted_for())
+                .field("term", &self.term())
+                .field("commit_index", &self.commit_index())
+                .field("append_index", &self.append_index())
                 .finish()
         }
     }
 
-    impl flatbuffers::SimpleToVerifyInSlice for Uuid {}
-    impl<'a> flatbuffers::Follow<'a> for Uuid {
-        type Inner = &'a Uuid;
+    impl flatbuffers::SimpleToVerifyInSlice for Metadata {}
+    impl<'a> flatbuffers::Follow<'a> for Metadata {
+        type Inner = &'a Metadata;
         #[inline]
         unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-            <&'a Uuid>::follow(buf, loc)
+            <&'a Metadata>::follow(buf, loc)
         }
     }
-    impl<'a> flatbuffers::Follow<'a> for &'a Uuid {
-        type Inner = &'a Uuid;
+    impl<'a> flatbuffers::Follow<'a> for &'a Metadata {
+        type Inner = &'a Metadata;
         #[inline]
         unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-            flatbuffers::follow_cast_ref::<Uuid>(buf, loc)
+            flatbuffers::follow_cast_ref::<Metadata>(buf, loc)
         }
     }
-    impl<'b> flatbuffers::Push for Uuid {
-        type Output = Uuid;
+    impl<'b> flatbuffers::Push for Metadata {
+        type Output = Metadata;
         #[inline]
         unsafe fn push(&self, dst: &mut [u8], _written_len: usize) {
             let src = ::core::slice::from_raw_parts(
-                self as *const Uuid as *const u8,
+                self as *const Metadata as *const u8,
                 <Self as flatbuffers::Push>::size(),
             );
             dst.copy_from_slice(src);
         }
         #[inline]
         fn alignment() -> flatbuffers::PushAlignment {
-            flatbuffers::PushAlignment::new(1)
+            flatbuffers::PushAlignment::new(8)
         }
     }
 
-    impl<'a> flatbuffers::Verifiable for Uuid {
+    impl<'a> flatbuffers::Verifiable for Metadata {
         #[inline]
         fn run_verifier(
             v: &mut flatbuffers::Verifier,
@@ -289,42 +198,404 @@ pub mod barge {
         }
     }
 
-    impl<'a> Uuid {
+    impl<'a> Metadata {
         #[allow(clippy::too_many_arguments)]
-        pub fn new(bytes: &[u8; 16]) -> Self {
-            let mut s = Self([0; 16]);
-            s.set_bytes(bytes);
+        pub fn new(
+            id: u16,
+            voted_for: u16,
+            term: u64,
+            commit_index: u64,
+            append_index: u64,
+        ) -> Self {
+            let mut s = Self([0; 32]);
+            s.set_id(id);
+            s.set_voted_for(voted_for);
+            s.set_term(term);
+            s.set_commit_index(commit_index);
+            s.set_append_index(append_index);
             s
         }
 
-        pub fn bytes(&'a self) -> flatbuffers::Array<'a, u8, 16> {
+        pub fn id(&self) -> u16 {
+            let mut mem = core::mem::MaybeUninit::<<u16 as EndianScalar>::Scalar>::uninit();
             // Safety:
             // Created from a valid Table for this object
-            // Which contains a valid array in this slot
-            unsafe { flatbuffers::Array::follow(&self.0, 0) }
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[0..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
         }
 
-        pub fn set_bytes(&mut self, items: &[u8; 16]) {
+        pub fn set_id(&mut self, x: u16) {
+            let x_le = x.to_little_endian();
             // Safety:
             // Created from a valid Table for this object
-            // Which contains a valid array in this slot
-            unsafe { flatbuffers::emplace_scalar_array(&mut self.0, 0, items) };
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[0..].as_mut_ptr(),
+                    core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+
+        pub fn voted_for(&self) -> u16 {
+            let mut mem = core::mem::MaybeUninit::<<u16 as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[2..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_voted_for(&mut self, x: u16) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[2..].as_mut_ptr(),
+                    core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+
+        pub fn term(&self) -> u64 {
+            let mut mem = core::mem::MaybeUninit::<<u64 as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[8..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_term(&mut self, x: u64) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[8..].as_mut_ptr(),
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+
+        pub fn commit_index(&self) -> u64 {
+            let mut mem = core::mem::MaybeUninit::<<u64 as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[16..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_commit_index(&mut self, x: u64) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[16..].as_mut_ptr(),
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+
+        pub fn append_index(&self) -> u64 {
+            let mut mem = core::mem::MaybeUninit::<<u64 as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[24..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_append_index(&mut self, x: u64) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[24..].as_mut_ptr(),
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+    }
+
+    // struct IndexEntry, aligned to 8
+    #[repr(transparent)]
+    #[derive(Clone, Copy, PartialEq)]
+    pub struct IndexEntry(pub [u8; 32]);
+    impl Default for IndexEntry {
+        fn default() -> Self {
+            Self([0; 32])
+        }
+    }
+    impl core::fmt::Debug for IndexEntry {
+        fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+            f.debug_struct("IndexEntry")
+                .field("index", &self.index())
+                .field("term", &self.term())
+                .field("offset", &self.offset())
+                .field("size", &self.size())
+                .field("sender", &self.sender())
+                .finish()
+        }
+    }
+
+    impl flatbuffers::SimpleToVerifyInSlice for IndexEntry {}
+    impl<'a> flatbuffers::Follow<'a> for IndexEntry {
+        type Inner = &'a IndexEntry;
+        #[inline]
+        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+            <&'a IndexEntry>::follow(buf, loc)
+        }
+    }
+    impl<'a> flatbuffers::Follow<'a> for &'a IndexEntry {
+        type Inner = &'a IndexEntry;
+        #[inline]
+        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+            flatbuffers::follow_cast_ref::<IndexEntry>(buf, loc)
+        }
+    }
+    impl<'b> flatbuffers::Push for IndexEntry {
+        type Output = IndexEntry;
+        #[inline]
+        unsafe fn push(&self, dst: &mut [u8], _written_len: usize) {
+            let src = ::core::slice::from_raw_parts(
+                self as *const IndexEntry as *const u8,
+                <Self as flatbuffers::Push>::size(),
+            );
+            dst.copy_from_slice(src);
+        }
+        #[inline]
+        fn alignment() -> flatbuffers::PushAlignment {
+            flatbuffers::PushAlignment::new(8)
+        }
+    }
+
+    impl<'a> flatbuffers::Verifiable for IndexEntry {
+        #[inline]
+        fn run_verifier(
+            v: &mut flatbuffers::Verifier,
+            pos: usize,
+        ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+            use self::flatbuffers::Verifiable;
+            v.in_buffer::<Self>(pos)
+        }
+    }
+
+    impl<'a> IndexEntry {
+        #[allow(clippy::too_many_arguments)]
+        pub fn new(index: u64, term: u64, offset: u64, size: u32, sender: u32) -> Self {
+            let mut s = Self([0; 32]);
+            s.set_index(index);
+            s.set_term(term);
+            s.set_offset(offset);
+            s.set_size(size);
+            s.set_sender(sender);
+            s
+        }
+
+        pub fn index(&self) -> u64 {
+            let mut mem = core::mem::MaybeUninit::<<u64 as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[0..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_index(&mut self, x: u64) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[0..].as_mut_ptr(),
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+
+        pub fn term(&self) -> u64 {
+            let mut mem = core::mem::MaybeUninit::<<u64 as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[8..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_term(&mut self, x: u64) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[8..].as_mut_ptr(),
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+
+        pub fn offset(&self) -> u64 {
+            let mut mem = core::mem::MaybeUninit::<<u64 as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[16..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_offset(&mut self, x: u64) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[16..].as_mut_ptr(),
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+
+        pub fn size(&self) -> u32 {
+            let mut mem = core::mem::MaybeUninit::<<u32 as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[24..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u32 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_size(&mut self, x: u32) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[24..].as_mut_ptr(),
+                    core::mem::size_of::<<u32 as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+
+        pub fn sender(&self) -> u32 {
+            let mut mem = core::mem::MaybeUninit::<<u32 as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[28..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u32 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_sender(&mut self, x: u32) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[28..].as_mut_ptr(),
+                    core::mem::size_of::<<u32 as EndianScalar>::Scalar>(),
+                );
+            }
         }
     }
 
     // struct NodeDetails, aligned to 4
     #[repr(transparent)]
     #[derive(Clone, Copy, PartialEq)]
-    pub struct NodeDetails(pub [u8; 24]);
+    pub struct NodeDetails(pub [u8; 12]);
     impl Default for NodeDetails {
         fn default() -> Self {
-            Self([0; 24])
+            Self([0; 12])
         }
     }
     impl core::fmt::Debug for NodeDetails {
         fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
             f.debug_struct("NodeDetails")
-                .field("uuid", &self.uuid())
+                .field("id", &self.id())
                 .field("ip", &self.ip())
                 .field("port", &self.port())
                 .finish()
@@ -375,24 +646,41 @@ pub mod barge {
 
     impl<'a> NodeDetails {
         #[allow(clippy::too_many_arguments)]
-        pub fn new(uuid: &Uuid, ip: u32, port: u16) -> Self {
-            let mut s = Self([0; 24]);
-            s.set_uuid(uuid);
+        pub fn new(id: u16, ip: u32, port: u16) -> Self {
+            let mut s = Self([0; 12]);
+            s.set_id(id);
             s.set_ip(ip);
             s.set_port(port);
             s
         }
 
-        pub fn uuid(&self) -> &Uuid {
+        pub fn id(&self) -> u16 {
+            let mut mem = core::mem::MaybeUninit::<<u16 as EndianScalar>::Scalar>::uninit();
             // Safety:
             // Created from a valid Table for this object
-            // Which contains a valid struct in this slot
-            unsafe { &*(self.0[0..].as_ptr() as *const Uuid) }
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[0..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
         }
 
-        #[allow(clippy::identity_op)]
-        pub fn set_uuid(&mut self, x: &Uuid) {
-            self.0[0..0 + 16].copy_from_slice(&x.0)
+        pub fn set_id(&mut self, x: u16) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[0..].as_mut_ptr(),
+                    core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
+                );
+            }
         }
 
         pub fn ip(&self) -> u32 {
@@ -402,7 +690,7 @@ pub mod barge {
             // Which contains a valid value in this slot
             EndianScalar::from_little_endian(unsafe {
                 core::ptr::copy_nonoverlapping(
-                    self.0[16..].as_ptr(),
+                    self.0[4..].as_ptr(),
                     mem.as_mut_ptr() as *mut u8,
                     core::mem::size_of::<<u32 as EndianScalar>::Scalar>(),
                 );
@@ -418,7 +706,7 @@ pub mod barge {
             unsafe {
                 core::ptr::copy_nonoverlapping(
                     &x_le as *const _ as *const u8,
-                    self.0[16..].as_mut_ptr(),
+                    self.0[4..].as_mut_ptr(),
                     core::mem::size_of::<<u32 as EndianScalar>::Scalar>(),
                 );
             }
@@ -431,7 +719,7 @@ pub mod barge {
             // Which contains a valid value in this slot
             EndianScalar::from_little_endian(unsafe {
                 core::ptr::copy_nonoverlapping(
-                    self.0[20..].as_ptr(),
+                    self.0[8..].as_ptr(),
                     mem.as_mut_ptr() as *mut u8,
                     core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
                 );
@@ -447,8 +735,229 @@ pub mod barge {
             unsafe {
                 core::ptr::copy_nonoverlapping(
                     &x_le as *const _ as *const u8,
-                    self.0[20..].as_mut_ptr(),
+                    self.0[8..].as_mut_ptr(),
                     core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+    }
+
+    // struct LogEntry, aligned to 8
+    #[repr(transparent)]
+    #[derive(Clone, Copy, PartialEq)]
+    pub struct LogEntry(pub [u8; 32]);
+    impl Default for LogEntry {
+        fn default() -> Self {
+            Self([0; 32])
+        }
+    }
+    impl core::fmt::Debug for LogEntry {
+        fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+            f.debug_struct("LogEntry")
+                .field("index", &self.index())
+                .field("term", &self.term())
+                .field("control", &self.control())
+                .field("offset", &self.offset())
+                .field("size", &self.size())
+                .finish()
+        }
+    }
+
+    impl flatbuffers::SimpleToVerifyInSlice for LogEntry {}
+    impl<'a> flatbuffers::Follow<'a> for LogEntry {
+        type Inner = &'a LogEntry;
+        #[inline]
+        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+            <&'a LogEntry>::follow(buf, loc)
+        }
+    }
+    impl<'a> flatbuffers::Follow<'a> for &'a LogEntry {
+        type Inner = &'a LogEntry;
+        #[inline]
+        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+            flatbuffers::follow_cast_ref::<LogEntry>(buf, loc)
+        }
+    }
+    impl<'b> flatbuffers::Push for LogEntry {
+        type Output = LogEntry;
+        #[inline]
+        unsafe fn push(&self, dst: &mut [u8], _written_len: usize) {
+            let src = ::core::slice::from_raw_parts(
+                self as *const LogEntry as *const u8,
+                <Self as flatbuffers::Push>::size(),
+            );
+            dst.copy_from_slice(src);
+        }
+        #[inline]
+        fn alignment() -> flatbuffers::PushAlignment {
+            flatbuffers::PushAlignment::new(8)
+        }
+    }
+
+    impl<'a> flatbuffers::Verifiable for LogEntry {
+        #[inline]
+        fn run_verifier(
+            v: &mut flatbuffers::Verifier,
+            pos: usize,
+        ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+            use self::flatbuffers::Verifiable;
+            v.in_buffer::<Self>(pos)
+        }
+    }
+
+    impl<'a> LogEntry {
+        #[allow(clippy::too_many_arguments)]
+        pub fn new(index: u64, term: u64, control: bool, offset: u32, size: u32) -> Self {
+            let mut s = Self([0; 32]);
+            s.set_index(index);
+            s.set_term(term);
+            s.set_control(control);
+            s.set_offset(offset);
+            s.set_size(size);
+            s
+        }
+
+        pub fn index(&self) -> u64 {
+            let mut mem = core::mem::MaybeUninit::<<u64 as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[0..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_index(&mut self, x: u64) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[0..].as_mut_ptr(),
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+
+        pub fn term(&self) -> u64 {
+            let mut mem = core::mem::MaybeUninit::<<u64 as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[8..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_term(&mut self, x: u64) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[8..].as_mut_ptr(),
+                    core::mem::size_of::<<u64 as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+
+        pub fn control(&self) -> bool {
+            let mut mem = core::mem::MaybeUninit::<<bool as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[16..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<bool as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_control(&mut self, x: bool) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[16..].as_mut_ptr(),
+                    core::mem::size_of::<<bool as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+
+        pub fn offset(&self) -> u32 {
+            let mut mem = core::mem::MaybeUninit::<<u32 as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[20..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u32 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_offset(&mut self, x: u32) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[20..].as_mut_ptr(),
+                    core::mem::size_of::<<u32 as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+
+        pub fn size(&self) -> u32 {
+            let mut mem = core::mem::MaybeUninit::<<u32 as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[24..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<u32 as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_size(&mut self, x: u32) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[24..].as_mut_ptr(),
+                    core::mem::size_of::<<u32 as EndianScalar>::Scalar>(),
                 );
             }
         }
@@ -522,11 +1031,15 @@ pub mod barge {
             }
         }
         #[inline]
-        pub fn node(&self) -> Option<&'a NodeDetails> {
+        pub fn node(&self) -> &'a NodeDetails {
             // Safety:
             // Created from valid Table for this object
             // which contains a valid value in this slot
-            unsafe { self._tab.get::<NodeDetails>(JoinReq::VT_NODE, None) }
+            unsafe {
+                self._tab
+                    .get::<NodeDetails>(JoinReq::VT_NODE, None)
+                    .unwrap()
+            }
         }
     }
 
@@ -540,7 +1053,7 @@ pub mod barge {
             v.visit_table(pos)?
                 .visit_field::<u64>("prev_index", Self::VT_PREV_INDEX, false)?
                 .visit_field::<u64>("prev_term", Self::VT_PREV_TERM, false)?
-                .visit_field::<NodeDetails>("node", Self::VT_NODE, false)?
+                .visit_field::<NodeDetails>("node", Self::VT_NODE, true)?
                 .finish();
             Ok(())
         }
@@ -556,7 +1069,7 @@ pub mod barge {
             JoinReqArgs {
                 prev_index: 0,
                 prev_term: 0,
-                node: None,
+                node: None, // required field
             }
         }
     }
@@ -594,6 +1107,7 @@ pub mod barge {
         #[inline]
         pub fn finish(self) -> flatbuffers::WIPOffset<JoinReq<'a>> {
             let o = self.fbb_.end_table(self.start_);
+            self.fbb_.required(o, JoinReq::VT_NODE, "node");
             flatbuffers::WIPOffset::new(o.value())
         }
     }
@@ -666,11 +1180,15 @@ pub mod barge {
             }
         }
         #[inline]
-        pub fn leader(&self) -> Option<&'a NodeDetails> {
+        pub fn leader(&self) -> &'a NodeDetails {
             // Safety:
             // Created from valid Table for this object
             // which contains a valid value in this slot
-            unsafe { self._tab.get::<NodeDetails>(JoinRes::VT_LEADER, None) }
+            unsafe {
+                self._tab
+                    .get::<NodeDetails>(JoinRes::VT_LEADER, None)
+                    .unwrap()
+            }
         }
         #[inline]
         pub fn message(&self) -> Option<&'a str> {
@@ -693,7 +1211,7 @@ pub mod barge {
             use self::flatbuffers::Verifiable;
             v.visit_table(pos)?
                 .visit_field::<bool>("success", Self::VT_SUCCESS, false)?
-                .visit_field::<NodeDetails>("leader", Self::VT_LEADER, false)?
+                .visit_field::<NodeDetails>("leader", Self::VT_LEADER, true)?
                 .visit_field::<flatbuffers::ForwardsUOffset<&str>>(
                     "message",
                     Self::VT_MESSAGE,
@@ -713,7 +1231,7 @@ pub mod barge {
         fn default() -> Self {
             JoinResArgs {
                 success: false,
-                leader: None,
+                leader: None, // required field
                 message: None,
             }
         }
@@ -752,6 +1270,7 @@ pub mod barge {
         #[inline]
         pub fn finish(self) -> flatbuffers::WIPOffset<JoinRes<'a>> {
             let o = self.fbb_.end_table(self.start_);
+            self.fbb_.required(o, JoinRes::VT_LEADER, "leader");
             flatbuffers::WIPOffset::new(o.value())
         }
     }
@@ -765,15 +1284,15 @@ pub mod barge {
             ds.finish()
         }
     }
-    pub enum CommandOffset {}
+    pub enum ControlEntryOffset {}
     #[derive(Copy, Clone, PartialEq)]
 
-    pub struct Command<'a> {
+    pub struct ControlEntry<'a> {
         pub _tab: flatbuffers::Table<'a>,
     }
 
-    impl<'a> flatbuffers::Follow<'a> for Command<'a> {
-        type Inner = Command<'a>;
+    impl<'a> flatbuffers::Follow<'a> for ControlEntry<'a> {
+        type Inner = ControlEntry<'a>;
         #[inline]
         unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
             Self {
@@ -782,130 +1301,13 @@ pub mod barge {
         }
     }
 
-    impl<'a> Command<'a> {
-        pub const VT_DATA: flatbuffers::VOffsetT = 4;
-
-        #[inline]
-        pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-            Command { _tab: table }
-        }
-        #[allow(unused_mut)]
-        pub fn create<
-            'bldr: 'args,
-            'args: 'mut_bldr,
-            'mut_bldr,
-            A: flatbuffers::Allocator + 'bldr,
-        >(
-            _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
-            args: &'args CommandArgs<'args>,
-        ) -> flatbuffers::WIPOffset<Command<'bldr>> {
-            let mut builder = CommandBuilder::new(_fbb);
-            if let Some(x) = args.data {
-                builder.add_data(x);
-            }
-            builder.finish()
-        }
-
-        #[inline]
-        pub fn data(&self) -> Option<flatbuffers::Vector<'a, u8>> {
-            // Safety:
-            // Created from valid Table for this object
-            // which contains a valid value in this slot
-            unsafe {
-                self._tab
-                    .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(
-                        Command::VT_DATA,
-                        None,
-                    )
-            }
-        }
-    }
-
-    impl flatbuffers::Verifiable for Command<'_> {
-        #[inline]
-        fn run_verifier(
-            v: &mut flatbuffers::Verifier,
-            pos: usize,
-        ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-            use self::flatbuffers::Verifiable;
-            v.visit_table(pos)?
-                .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u8>>>(
-                    "data",
-                    Self::VT_DATA,
-                    false,
-                )?
-                .finish();
-            Ok(())
-        }
-    }
-    pub struct CommandArgs<'a> {
-        pub data: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
-    }
-    impl<'a> Default for CommandArgs<'a> {
-        #[inline]
-        fn default() -> Self {
-            CommandArgs { data: None }
-        }
-    }
-
-    pub struct CommandBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
-        fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
-        start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-    }
-    impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> CommandBuilder<'a, 'b, A> {
-        #[inline]
-        pub fn add_data(&mut self, data: flatbuffers::WIPOffset<flatbuffers::Vector<'b, u8>>) {
-            self.fbb_
-                .push_slot_always::<flatbuffers::WIPOffset<_>>(Command::VT_DATA, data);
-        }
-        #[inline]
-        pub fn new(
-            _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
-        ) -> CommandBuilder<'a, 'b, A> {
-            let start = _fbb.start_table();
-            CommandBuilder {
-                fbb_: _fbb,
-                start_: start,
-            }
-        }
-        #[inline]
-        pub fn finish(self) -> flatbuffers::WIPOffset<Command<'a>> {
-            let o = self.fbb_.end_table(self.start_);
-            flatbuffers::WIPOffset::new(o.value())
-        }
-    }
-
-    impl core::fmt::Debug for Command<'_> {
-        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            let mut ds = f.debug_struct("Command");
-            ds.field("data", &self.data());
-            ds.finish()
-        }
-    }
-    pub enum MembershipChangeOffset {}
-    #[derive(Copy, Clone, PartialEq)]
-
-    pub struct MembershipChange<'a> {
-        pub _tab: flatbuffers::Table<'a>,
-    }
-
-    impl<'a> flatbuffers::Follow<'a> for MembershipChange<'a> {
-        type Inner = MembershipChange<'a>;
-        #[inline]
-        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-            Self {
-                _tab: flatbuffers::Table::new(buf, loc),
-            }
-        }
-    }
-
-    impl<'a> MembershipChange<'a> {
+    impl<'a> ControlEntry<'a> {
         pub const VT_NEW_MEMBERS: flatbuffers::VOffsetT = 4;
         pub const VT_REMOVED_MEMBERS: flatbuffers::VOffsetT = 6;
 
         #[inline]
         pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-            MembershipChange { _tab: table }
+            ControlEntry { _tab: table }
         }
         #[allow(unused_mut)]
         pub fn create<
@@ -915,9 +1317,9 @@ pub mod barge {
             A: flatbuffers::Allocator + 'bldr,
         >(
             _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
-            args: &'args MembershipChangeArgs<'args>,
-        ) -> flatbuffers::WIPOffset<MembershipChange<'bldr>> {
-            let mut builder = MembershipChangeBuilder::new(_fbb);
+            args: &'args ControlEntryArgs<'args>,
+        ) -> flatbuffers::WIPOffset<ControlEntry<'bldr>> {
+            let mut builder = ControlEntryBuilder::new(_fbb);
             if let Some(x) = args.removed_members {
                 builder.add_removed_members(x);
             }
@@ -935,27 +1337,27 @@ pub mod barge {
             unsafe {
                 self._tab
                     .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, NodeDetails>>>(
-                        MembershipChange::VT_NEW_MEMBERS,
+                        ControlEntry::VT_NEW_MEMBERS,
                         None,
                     )
             }
         }
         #[inline]
-        pub fn removed_members(&self) -> Option<flatbuffers::Vector<'a, Uuid>> {
+        pub fn removed_members(&self) -> Option<flatbuffers::Vector<'a, u32>> {
             // Safety:
             // Created from valid Table for this object
             // which contains a valid value in this slot
             unsafe {
                 self._tab
-                    .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, Uuid>>>(
-                        MembershipChange::VT_REMOVED_MEMBERS,
+                    .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u32>>>(
+                        ControlEntry::VT_REMOVED_MEMBERS,
                         None,
                     )
             }
         }
     }
 
-    impl flatbuffers::Verifiable for MembershipChange<'_> {
+    impl flatbuffers::Verifiable for ControlEntry<'_> {
         #[inline]
         fn run_verifier(
             v: &mut flatbuffers::Verifier,
@@ -968,7 +1370,7 @@ pub mod barge {
                     Self::VT_NEW_MEMBERS,
                     false,
                 )?
-                .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, Uuid>>>(
+                .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u32>>>(
                     "removed_members",
                     Self::VT_REMOVED_MEMBERS,
                     false,
@@ -977,310 +1379,67 @@ pub mod barge {
             Ok(())
         }
     }
-    pub struct MembershipChangeArgs<'a> {
+    pub struct ControlEntryArgs<'a> {
         pub new_members: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, NodeDetails>>>,
-        pub removed_members: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, Uuid>>>,
+        pub removed_members: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u32>>>,
     }
-    impl<'a> Default for MembershipChangeArgs<'a> {
+    impl<'a> Default for ControlEntryArgs<'a> {
         #[inline]
         fn default() -> Self {
-            MembershipChangeArgs {
+            ControlEntryArgs {
                 new_members: None,
                 removed_members: None,
             }
         }
     }
 
-    pub struct MembershipChangeBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+    pub struct ControlEntryBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
         fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
         start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
     }
-    impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> MembershipChangeBuilder<'a, 'b, A> {
+    impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> ControlEntryBuilder<'a, 'b, A> {
         #[inline]
         pub fn add_new_members(
             &mut self,
             new_members: flatbuffers::WIPOffset<flatbuffers::Vector<'b, NodeDetails>>,
         ) {
             self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
-                MembershipChange::VT_NEW_MEMBERS,
+                ControlEntry::VT_NEW_MEMBERS,
                 new_members,
             );
         }
         #[inline]
         pub fn add_removed_members(
             &mut self,
-            removed_members: flatbuffers::WIPOffset<flatbuffers::Vector<'b, Uuid>>,
+            removed_members: flatbuffers::WIPOffset<flatbuffers::Vector<'b, u32>>,
         ) {
             self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
-                MembershipChange::VT_REMOVED_MEMBERS,
+                ControlEntry::VT_REMOVED_MEMBERS,
                 removed_members,
             );
         }
         #[inline]
         pub fn new(
             _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
-        ) -> MembershipChangeBuilder<'a, 'b, A> {
+        ) -> ControlEntryBuilder<'a, 'b, A> {
             let start = _fbb.start_table();
-            MembershipChangeBuilder {
+            ControlEntryBuilder {
                 fbb_: _fbb,
                 start_: start,
             }
         }
         #[inline]
-        pub fn finish(self) -> flatbuffers::WIPOffset<MembershipChange<'a>> {
+        pub fn finish(self) -> flatbuffers::WIPOffset<ControlEntry<'a>> {
             let o = self.fbb_.end_table(self.start_);
             flatbuffers::WIPOffset::new(o.value())
         }
     }
 
-    impl core::fmt::Debug for MembershipChange<'_> {
+    impl core::fmt::Debug for ControlEntry<'_> {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            let mut ds = f.debug_struct("MembershipChange");
+            let mut ds = f.debug_struct("ControlEntry");
             ds.field("new_members", &self.new_members());
             ds.field("removed_members", &self.removed_members());
-            ds.finish()
-        }
-    }
-    pub enum LogEntryOffset {}
-    #[derive(Copy, Clone, PartialEq)]
-
-    pub struct LogEntry<'a> {
-        pub _tab: flatbuffers::Table<'a>,
-    }
-
-    impl<'a> flatbuffers::Follow<'a> for LogEntry<'a> {
-        type Inner = LogEntry<'a>;
-        #[inline]
-        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-            Self {
-                _tab: flatbuffers::Table::new(buf, loc),
-            }
-        }
-    }
-
-    impl<'a> LogEntry<'a> {
-        pub const VT_INDEX: flatbuffers::VOffsetT = 4;
-        pub const VT_TERM: flatbuffers::VOffsetT = 6;
-        pub const VT_DATA_TYPE: flatbuffers::VOffsetT = 8;
-        pub const VT_DATA: flatbuffers::VOffsetT = 10;
-
-        #[inline]
-        pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-            LogEntry { _tab: table }
-        }
-        #[allow(unused_mut)]
-        pub fn create<
-            'bldr: 'args,
-            'args: 'mut_bldr,
-            'mut_bldr,
-            A: flatbuffers::Allocator + 'bldr,
-        >(
-            _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
-            args: &'args LogEntryArgs,
-        ) -> flatbuffers::WIPOffset<LogEntry<'bldr>> {
-            let mut builder = LogEntryBuilder::new(_fbb);
-            builder.add_term(args.term);
-            builder.add_index(args.index);
-            if let Some(x) = args.data {
-                builder.add_data(x);
-            }
-            builder.add_data_type(args.data_type);
-            builder.finish()
-        }
-
-        #[inline]
-        pub fn index(&self) -> u64 {
-            // Safety:
-            // Created from valid Table for this object
-            // which contains a valid value in this slot
-            unsafe { self._tab.get::<u64>(LogEntry::VT_INDEX, Some(0)).unwrap() }
-        }
-        #[inline]
-        pub fn term(&self) -> u64 {
-            // Safety:
-            // Created from valid Table for this object
-            // which contains a valid value in this slot
-            unsafe { self._tab.get::<u64>(LogEntry::VT_TERM, Some(0)).unwrap() }
-        }
-        #[inline]
-        pub fn data_type(&self) -> Entry {
-            // Safety:
-            // Created from valid Table for this object
-            // which contains a valid value in this slot
-            unsafe {
-                self._tab
-                    .get::<Entry>(LogEntry::VT_DATA_TYPE, Some(Entry::NONE))
-                    .unwrap()
-            }
-        }
-        #[inline]
-        pub fn data(&self) -> Option<flatbuffers::Table<'a>> {
-            // Safety:
-            // Created from valid Table for this object
-            // which contains a valid value in this slot
-            unsafe {
-                self._tab
-                    .get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(
-                        LogEntry::VT_DATA,
-                        None,
-                    )
-            }
-        }
-        #[inline]
-        #[allow(non_snake_case)]
-        pub fn data_as_command(&self) -> Option<Command<'a>> {
-            if self.data_type() == Entry::Command {
-                self.data().map(|t| {
-                    // Safety:
-                    // Created from a valid Table for this object
-                    // Which contains a valid union in this slot
-                    unsafe { Command::init_from_table(t) }
-                })
-            } else {
-                None
-            }
-        }
-
-        #[inline]
-        #[allow(non_snake_case)]
-        pub fn data_as_membership_change(&self) -> Option<MembershipChange<'a>> {
-            if self.data_type() == Entry::MembershipChange {
-                self.data().map(|t| {
-                    // Safety:
-                    // Created from a valid Table for this object
-                    // Which contains a valid union in this slot
-                    unsafe { MembershipChange::init_from_table(t) }
-                })
-            } else {
-                None
-            }
-        }
-    }
-
-    impl flatbuffers::Verifiable for LogEntry<'_> {
-        #[inline]
-        fn run_verifier(
-            v: &mut flatbuffers::Verifier,
-            pos: usize,
-        ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-            use self::flatbuffers::Verifiable;
-            v.visit_table(pos)?
-                .visit_field::<u64>("index", Self::VT_INDEX, false)?
-                .visit_field::<u64>("term", Self::VT_TERM, false)?
-                .visit_union::<Entry, _>(
-                    "data_type",
-                    Self::VT_DATA_TYPE,
-                    "data",
-                    Self::VT_DATA,
-                    false,
-                    |key, v, pos| match key {
-                        Entry::Command => v
-                            .verify_union_variant::<flatbuffers::ForwardsUOffset<Command>>(
-                                "Entry::Command",
-                                pos,
-                            ),
-                        Entry::MembershipChange => v
-                            .verify_union_variant::<flatbuffers::ForwardsUOffset<MembershipChange>>(
-                                "Entry::MembershipChange",
-                                pos,
-                            ),
-                        _ => Ok(()),
-                    },
-                )?
-                .finish();
-            Ok(())
-        }
-    }
-    pub struct LogEntryArgs {
-        pub index: u64,
-        pub term: u64,
-        pub data_type: Entry,
-        pub data: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
-    }
-    impl<'a> Default for LogEntryArgs {
-        #[inline]
-        fn default() -> Self {
-            LogEntryArgs {
-                index: 0,
-                term: 0,
-                data_type: Entry::NONE,
-                data: None,
-            }
-        }
-    }
-
-    pub struct LogEntryBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
-        fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
-        start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-    }
-    impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> LogEntryBuilder<'a, 'b, A> {
-        #[inline]
-        pub fn add_index(&mut self, index: u64) {
-            self.fbb_.push_slot::<u64>(LogEntry::VT_INDEX, index, 0);
-        }
-        #[inline]
-        pub fn add_term(&mut self, term: u64) {
-            self.fbb_.push_slot::<u64>(LogEntry::VT_TERM, term, 0);
-        }
-        #[inline]
-        pub fn add_data_type(&mut self, data_type: Entry) {
-            self.fbb_
-                .push_slot::<Entry>(LogEntry::VT_DATA_TYPE, data_type, Entry::NONE);
-        }
-        #[inline]
-        pub fn add_data(&mut self, data: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>) {
-            self.fbb_
-                .push_slot_always::<flatbuffers::WIPOffset<_>>(LogEntry::VT_DATA, data);
-        }
-        #[inline]
-        pub fn new(
-            _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
-        ) -> LogEntryBuilder<'a, 'b, A> {
-            let start = _fbb.start_table();
-            LogEntryBuilder {
-                fbb_: _fbb,
-                start_: start,
-            }
-        }
-        #[inline]
-        pub fn finish(self) -> flatbuffers::WIPOffset<LogEntry<'a>> {
-            let o = self.fbb_.end_table(self.start_);
-            flatbuffers::WIPOffset::new(o.value())
-        }
-    }
-
-    impl core::fmt::Debug for LogEntry<'_> {
-        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            let mut ds = f.debug_struct("LogEntry");
-            ds.field("index", &self.index());
-            ds.field("term", &self.term());
-            ds.field("data_type", &self.data_type());
-            match self.data_type() {
-                Entry::Command => {
-                    if let Some(x) = self.data_as_command() {
-                        ds.field("data", &x)
-                    } else {
-                        ds.field(
-                            "data",
-                            &"InvalidFlatbuffer: Union discriminant does not match value.",
-                        )
-                    }
-                }
-                Entry::MembershipChange => {
-                    if let Some(x) = self.data_as_membership_change() {
-                        ds.field("data", &x)
-                    } else {
-                        ds.field(
-                            "data",
-                            &"InvalidFlatbuffer: Union discriminant does not match value.",
-                        )
-                    }
-                }
-                _ => {
-                    let x: Option<()> = None;
-                    ds.field("data", &x)
-                }
-            };
             ds.finish()
         }
     }
@@ -1307,6 +1466,7 @@ pub mod barge {
         pub const VT_PREV_INDEX: flatbuffers::VOffsetT = 8;
         pub const VT_PREV_TERM: flatbuffers::VOffsetT = 10;
         pub const VT_ENTRIES: flatbuffers::VOffsetT = 12;
+        pub const VT_DATA: flatbuffers::VOffsetT = 14;
 
         #[inline]
         pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -1327,6 +1487,9 @@ pub mod barge {
             builder.add_prev_index(args.prev_index);
             builder.add_commit_index(args.commit_index);
             builder.add_term(args.term);
+            if let Some(x) = args.data {
+                builder.add_data(x);
+            }
             if let Some(x) = args.entries {
                 builder.add_entries(x);
             }
@@ -1378,16 +1541,29 @@ pub mod barge {
             }
         }
         #[inline]
-        pub fn entries(
-            &self,
-        ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<LogEntry<'a>>>> {
+        pub fn entries(&self) -> Option<flatbuffers::Vector<'a, LogEntry>> {
             // Safety:
             // Created from valid Table for this object
             // which contains a valid value in this slot
             unsafe {
-                self._tab.get::<flatbuffers::ForwardsUOffset<
-                    flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<LogEntry>>,
-                >>(AppendEntriesReq::VT_ENTRIES, None)
+                self._tab
+                    .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, LogEntry>>>(
+                        AppendEntriesReq::VT_ENTRIES,
+                        None,
+                    )
+            }
+        }
+        #[inline]
+        pub fn data(&self) -> Option<flatbuffers::Vector<'a, u8>> {
+            // Safety:
+            // Created from valid Table for this object
+            // which contains a valid value in this slot
+            unsafe {
+                self._tab
+                    .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(
+                        AppendEntriesReq::VT_DATA,
+                        None,
+                    )
             }
         }
     }
@@ -1404,9 +1580,16 @@ pub mod barge {
                 .visit_field::<u64>("commit_index", Self::VT_COMMIT_INDEX, false)?
                 .visit_field::<u64>("prev_index", Self::VT_PREV_INDEX, false)?
                 .visit_field::<u64>("prev_term", Self::VT_PREV_TERM, false)?
-                .visit_field::<flatbuffers::ForwardsUOffset<
-                    flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<LogEntry>>,
-                >>("entries", Self::VT_ENTRIES, false)?
+                .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, LogEntry>>>(
+                    "entries",
+                    Self::VT_ENTRIES,
+                    false,
+                )?
+                .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u8>>>(
+                    "data",
+                    Self::VT_DATA,
+                    false,
+                )?
                 .finish();
             Ok(())
         }
@@ -1416,11 +1599,8 @@ pub mod barge {
         pub commit_index: u64,
         pub prev_index: u64,
         pub prev_term: u64,
-        pub entries: Option<
-            flatbuffers::WIPOffset<
-                flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<LogEntry<'a>>>,
-            >,
-        >,
+        pub entries: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, LogEntry>>>,
+        pub data: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
     }
     impl<'a> Default for AppendEntriesReqArgs<'a> {
         #[inline]
@@ -1431,6 +1611,7 @@ pub mod barge {
                 prev_index: 0,
                 prev_term: 0,
                 entries: None,
+                data: None,
             }
         }
     }
@@ -1463,14 +1644,17 @@ pub mod barge {
         #[inline]
         pub fn add_entries(
             &mut self,
-            entries: flatbuffers::WIPOffset<
-                flatbuffers::Vector<'b, flatbuffers::ForwardsUOffset<LogEntry<'b>>>,
-            >,
+            entries: flatbuffers::WIPOffset<flatbuffers::Vector<'b, LogEntry>>,
         ) {
             self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
                 AppendEntriesReq::VT_ENTRIES,
                 entries,
             );
+        }
+        #[inline]
+        pub fn add_data(&mut self, data: flatbuffers::WIPOffset<flatbuffers::Vector<'b, u8>>) {
+            self.fbb_
+                .push_slot_always::<flatbuffers::WIPOffset<_>>(AppendEntriesReq::VT_DATA, data);
         }
         #[inline]
         pub fn new(
@@ -1497,6 +1681,7 @@ pub mod barge {
             ds.field("prev_index", &self.prev_index());
             ds.field("prev_term", &self.prev_term());
             ds.field("entries", &self.entries());
+            ds.field("data", &self.data());
             ds.finish()
         }
     }
@@ -1712,15 +1897,13 @@ pub mod barge {
             A: flatbuffers::Allocator + 'bldr,
         >(
             _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
-            args: &'args ElectionReqArgs<'args>,
+            args: &'args ElectionReqArgs,
         ) -> flatbuffers::WIPOffset<ElectionReq<'bldr>> {
             let mut builder = ElectionReqBuilder::new(_fbb);
             builder.add_prev_term(args.prev_term);
             builder.add_prev_index(args.prev_index);
             builder.add_term(args.term);
-            if let Some(x) = args.candidate_id {
-                builder.add_candidate_id(x);
-            }
+            builder.add_candidate_id(args.candidate_id);
             builder.finish()
         }
 
@@ -1732,11 +1915,15 @@ pub mod barge {
             unsafe { self._tab.get::<u64>(ElectionReq::VT_TERM, Some(0)).unwrap() }
         }
         #[inline]
-        pub fn candidate_id(&self) -> Option<&'a Uuid> {
+        pub fn candidate_id(&self) -> u16 {
             // Safety:
             // Created from valid Table for this object
             // which contains a valid value in this slot
-            unsafe { self._tab.get::<Uuid>(ElectionReq::VT_CANDIDATE_ID, None) }
+            unsafe {
+                self._tab
+                    .get::<u16>(ElectionReq::VT_CANDIDATE_ID, Some(0))
+                    .unwrap()
+            }
         }
         #[inline]
         pub fn prev_index(&self) -> u64 {
@@ -1771,25 +1958,25 @@ pub mod barge {
             use self::flatbuffers::Verifiable;
             v.visit_table(pos)?
                 .visit_field::<u64>("term", Self::VT_TERM, false)?
-                .visit_field::<Uuid>("candidate_id", Self::VT_CANDIDATE_ID, false)?
+                .visit_field::<u16>("candidate_id", Self::VT_CANDIDATE_ID, false)?
                 .visit_field::<u64>("prev_index", Self::VT_PREV_INDEX, false)?
                 .visit_field::<u64>("prev_term", Self::VT_PREV_TERM, false)?
                 .finish();
             Ok(())
         }
     }
-    pub struct ElectionReqArgs<'a> {
+    pub struct ElectionReqArgs {
         pub term: u64,
-        pub candidate_id: Option<&'a Uuid>,
+        pub candidate_id: u16,
         pub prev_index: u64,
         pub prev_term: u64,
     }
-    impl<'a> Default for ElectionReqArgs<'a> {
+    impl<'a> Default for ElectionReqArgs {
         #[inline]
         fn default() -> Self {
             ElectionReqArgs {
                 term: 0,
-                candidate_id: None,
+                candidate_id: 0,
                 prev_index: 0,
                 prev_term: 0,
             }
@@ -1806,9 +1993,9 @@ pub mod barge {
             self.fbb_.push_slot::<u64>(ElectionReq::VT_TERM, term, 0);
         }
         #[inline]
-        pub fn add_candidate_id(&mut self, candidate_id: &Uuid) {
+        pub fn add_candidate_id(&mut self, candidate_id: u16) {
             self.fbb_
-                .push_slot_always::<&Uuid>(ElectionReq::VT_CANDIDATE_ID, candidate_id);
+                .push_slot::<u16>(ElectionReq::VT_CANDIDATE_ID, candidate_id, 0);
         }
         #[inline]
         pub fn add_prev_index(&mut self, prev_index: u64) {
@@ -2010,26 +2197,24 @@ pub mod barge {
             A: flatbuffers::Allocator + 'bldr,
         >(
             _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
-            args: &'args MessageArgs<'args>,
+            args: &'args MessageArgs,
         ) -> flatbuffers::WIPOffset<Message<'bldr>> {
             let mut builder = MessageBuilder::new(_fbb);
             builder.add_timestamp(args.timestamp);
             if let Some(x) = args.event {
                 builder.add_event(x);
             }
-            if let Some(x) = args.sender {
-                builder.add_sender(x);
-            }
+            builder.add_sender(args.sender);
             builder.add_event_type(args.event_type);
             builder.finish()
         }
 
         #[inline]
-        pub fn sender(&self) -> Option<&'a Uuid> {
+        pub fn sender(&self) -> u16 {
             // Safety:
             // Created from valid Table for this object
             // which contains a valid value in this slot
-            unsafe { self._tab.get::<Uuid>(Message::VT_SENDER, None) }
+            unsafe { self._tab.get::<u16>(Message::VT_SENDER, Some(0)).unwrap() }
         }
         #[inline]
         pub fn timestamp(&self) -> i64 {
@@ -2054,7 +2239,7 @@ pub mod barge {
             }
         }
         #[inline]
-        pub fn event(&self) -> Option<flatbuffers::Table<'a>> {
+        pub fn event(&self) -> flatbuffers::Table<'a> {
             // Safety:
             // Created from valid Table for this object
             // which contains a valid value in this slot
@@ -2064,18 +2249,18 @@ pub mod barge {
                         Message::VT_EVENT,
                         None,
                     )
+                    .unwrap()
             }
         }
         #[inline]
         #[allow(non_snake_case)]
         pub fn event_as_append_entries_req(&self) -> Option<AppendEntriesReq<'a>> {
             if self.event_type() == Event::AppendEntriesReq {
-                self.event().map(|t| {
-                    // Safety:
-                    // Created from a valid Table for this object
-                    // Which contains a valid union in this slot
-                    unsafe { AppendEntriesReq::init_from_table(t) }
-                })
+                let u = self.event();
+                // Safety:
+                // Created from a valid Table for this object
+                // Which contains a valid union in this slot
+                Some(unsafe { AppendEntriesReq::init_from_table(u) })
             } else {
                 None
             }
@@ -2085,12 +2270,11 @@ pub mod barge {
         #[allow(non_snake_case)]
         pub fn event_as_append_entries_res(&self) -> Option<AppendEntriesRes<'a>> {
             if self.event_type() == Event::AppendEntriesRes {
-                self.event().map(|t| {
-                    // Safety:
-                    // Created from a valid Table for this object
-                    // Which contains a valid union in this slot
-                    unsafe { AppendEntriesRes::init_from_table(t) }
-                })
+                let u = self.event();
+                // Safety:
+                // Created from a valid Table for this object
+                // Which contains a valid union in this slot
+                Some(unsafe { AppendEntriesRes::init_from_table(u) })
             } else {
                 None
             }
@@ -2100,12 +2284,11 @@ pub mod barge {
         #[allow(non_snake_case)]
         pub fn event_as_election_req(&self) -> Option<ElectionReq<'a>> {
             if self.event_type() == Event::ElectionReq {
-                self.event().map(|t| {
-                    // Safety:
-                    // Created from a valid Table for this object
-                    // Which contains a valid union in this slot
-                    unsafe { ElectionReq::init_from_table(t) }
-                })
+                let u = self.event();
+                // Safety:
+                // Created from a valid Table for this object
+                // Which contains a valid union in this slot
+                Some(unsafe { ElectionReq::init_from_table(u) })
             } else {
                 None
             }
@@ -2115,12 +2298,11 @@ pub mod barge {
         #[allow(non_snake_case)]
         pub fn event_as_election_res(&self) -> Option<ElectionRes<'a>> {
             if self.event_type() == Event::ElectionRes {
-                self.event().map(|t| {
-                    // Safety:
-                    // Created from a valid Table for this object
-                    // Which contains a valid union in this slot
-                    unsafe { ElectionRes::init_from_table(t) }
-                })
+                let u = self.event();
+                // Safety:
+                // Created from a valid Table for this object
+                // Which contains a valid union in this slot
+                Some(unsafe { ElectionRes::init_from_table(u) })
             } else {
                 None
             }
@@ -2130,12 +2312,11 @@ pub mod barge {
         #[allow(non_snake_case)]
         pub fn event_as_join_req(&self) -> Option<JoinReq<'a>> {
             if self.event_type() == Event::JoinReq {
-                self.event().map(|t| {
-                    // Safety:
-                    // Created from a valid Table for this object
-                    // Which contains a valid union in this slot
-                    unsafe { JoinReq::init_from_table(t) }
-                })
+                let u = self.event();
+                // Safety:
+                // Created from a valid Table for this object
+                // Which contains a valid union in this slot
+                Some(unsafe { JoinReq::init_from_table(u) })
             } else {
                 None
             }
@@ -2145,12 +2326,11 @@ pub mod barge {
         #[allow(non_snake_case)]
         pub fn event_as_join_res(&self) -> Option<JoinRes<'a>> {
             if self.event_type() == Event::JoinRes {
-                self.event().map(|t| {
-                    // Safety:
-                    // Created from a valid Table for this object
-                    // Which contains a valid union in this slot
-                    unsafe { JoinRes::init_from_table(t) }
-                })
+                let u = self.event();
+                // Safety:
+                // Created from a valid Table for this object
+                // Which contains a valid union in this slot
+                Some(unsafe { JoinRes::init_from_table(u) })
             } else {
                 None
             }
@@ -2165,14 +2345,14 @@ pub mod barge {
         ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
             use self::flatbuffers::Verifiable;
             v.visit_table(pos)?
-                .visit_field::<Uuid>("sender", Self::VT_SENDER, false)?
+                .visit_field::<u16>("sender", Self::VT_SENDER, false)?
                 .visit_field::<i64>("timestamp", Self::VT_TIMESTAMP, false)?
                 .visit_union::<Event, _>(
                     "event_type",
                     Self::VT_EVENT_TYPE,
                     "event",
                     Self::VT_EVENT,
-                    false,
+                    true,
                     |key, v, pos| match key {
                         Event::AppendEntriesReq => v
                             .verify_union_variant::<flatbuffers::ForwardsUOffset<AppendEntriesReq>>(
@@ -2211,20 +2391,20 @@ pub mod barge {
             Ok(())
         }
     }
-    pub struct MessageArgs<'a> {
-        pub sender: Option<&'a Uuid>,
+    pub struct MessageArgs {
+        pub sender: u16,
         pub timestamp: i64,
         pub event_type: Event,
         pub event: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
     }
-    impl<'a> Default for MessageArgs<'a> {
+    impl<'a> Default for MessageArgs {
         #[inline]
         fn default() -> Self {
             MessageArgs {
-                sender: None,
+                sender: 0,
                 timestamp: 0,
                 event_type: Event::NONE,
-                event: None,
+                event: None, // required field
             }
         }
     }
@@ -2235,9 +2415,8 @@ pub mod barge {
     }
     impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> MessageBuilder<'a, 'b, A> {
         #[inline]
-        pub fn add_sender(&mut self, sender: &Uuid) {
-            self.fbb_
-                .push_slot_always::<&Uuid>(Message::VT_SENDER, sender);
+        pub fn add_sender(&mut self, sender: u16) {
+            self.fbb_.push_slot::<u16>(Message::VT_SENDER, sender, 0);
         }
         #[inline]
         pub fn add_timestamp(&mut self, timestamp: i64) {
@@ -2267,6 +2446,7 @@ pub mod barge {
         #[inline]
         pub fn finish(self) -> flatbuffers::WIPOffset<Message<'a>> {
             let o = self.fbb_.end_table(self.start_);
+            self.fbb_.required(o, Message::VT_EVENT, "event");
             flatbuffers::WIPOffset::new(o.value())
         }
     }

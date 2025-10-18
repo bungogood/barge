@@ -1,11 +1,23 @@
 namespace Barge;
 
-struct Uuid {
-  bytes:[ubyte:16];
+struct Metadata {
+    id: uint16;
+    voted_for: uint16; // 0xFFFF is None
+    term: uint64;
+    commit_index: uint64;
+    append_index: uint64;
+}
+
+struct IndexEntry {
+    index: uint64;
+    term: uint64;
+    offset: uint64;
+    size: uint32;
+    sender: uint32;
 }
 
 struct NodeDetails {
-    uuid:Uuid;
+    id:uint16;
     ip:uint32;
     port:uint16;
 }
@@ -20,68 +32,63 @@ union Event {
 }
 
 table JoinReq {
-    prev_index:uint64;
-    prev_term:uint64;
-    node:NodeDetails;
+    prev_index: uint64;
+    prev_term: uint64;
+    node: NodeDetails (required);
 }
 
 table JoinRes {
-    success:bool;
-    leader:NodeDetails;
-    message:string;
+    success: bool;
+    leader: NodeDetails (required);
+    message: string;
 }
 
-table Command {
-    data:[ubyte];
+table ControlEntry {
+    new_members: [NodeDetails];
+    removed_members: [uint32];
 }
 
-table MembershipChange {
-    new_members:[NodeDetails];
-    removed_members:[Uuid];
-}
-
-union Entry {
-    Command,
-    MembershipChange
-}
-
-table LogEntry {
-    index:uint64;
-    term:uint64;
-    data:Entry;
+// Meta data about each entry in AppendEntriesReq
+struct LogEntry {
+    index: uint64;
+    term: uint64;
+    control: bool;
+    offset: uint32;
+    size: uint32;
 }
 
 table AppendEntriesReq {
-    term:uint64;
-    commit_index:uint64;
-    prev_index:uint64;
-    prev_term:uint64;
-    entries:[LogEntry];
+    term: uint64;
+    commit_index: uint64;
+    prev_index: uint64;
+    prev_term: uint64;
+    entries: [LogEntry];
+    data: [ubyte];
 }
 
 table AppendEntriesRes {
-    term:uint64;
-    append_index:uint64;
-    commit_index:uint64;
-    success:bool;
+    term: uint64;
+    append_index: uint64;
+    commit_index: uint64;
+    success: bool;
 }
 
 table ElectionReq {
-    term:uint64;
-    candidate_id:Uuid;
-    prev_index:uint64;
-    prev_term:uint64;
+    term: uint64;
+    candidate_id: uint16;
+    prev_index: uint64;
+    prev_term: uint64;
 }
 
 table ElectionRes {
-    term:uint64;
-    vote_granted:bool;
+    term: uint64;
+    vote_granted: bool;
 }
 
 table Message {
-    sender:Uuid;
-    timestamp:int64;
-    event:Event;
+    sender: uint16;
+    timestamp: int64;
+    event: Event (required);
 }
 
 root_type Message;

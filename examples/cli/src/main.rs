@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 use futures::future::join_all;
-use std::time::Instant;
+use std::{path::PathBuf, time::Instant};
 use tracing::info;
 
 use barge::Barge;
@@ -21,12 +21,13 @@ enum SubCommand {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt().init();
     let args = Args::parse();
+    let dir = PathBuf::from("data");
 
     match args.command {
         SubCommand::New { addr } => {
             let addr = addr.parse()?;
             info!("Starting new cluster at {}", addr);
-            let _barge = Barge::new(addr);
+            let _barge = Barge::new(None, dir, addr);
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(60)).await;
             }
@@ -35,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
             let addr = addr.parse()?;
             let join_addr = join_addr.parse()?;
             info!("Joining cluster at {} from {}", join_addr, addr);
-            let barge = Barge::join(addr, vec![join_addr]);
+            let barge = Barge::join(None, dir, addr, vec![join_addr]);
             // let num = 10_000;
             let num = 10;
             let proposals = (0..num).map(|_| barge.propose(b"Hello, world!".to_vec()));
