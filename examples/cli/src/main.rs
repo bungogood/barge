@@ -1,6 +1,5 @@
 use clap::{Parser, Subcommand};
 use futures::future::join_all;
-use std::net::SocketAddrV4;
 use std::time::Instant;
 use tracing::info;
 
@@ -14,8 +13,8 @@ struct Args {
 
 #[derive(Subcommand)]
 enum SubCommand {
-    New { port: u16 },
-    Join { port: u16, join_addr: String },
+    New { addr: String },
+    Join { addr: String, join_addr: String },
 }
 
 #[tokio::main]
@@ -24,17 +23,20 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match args.command {
-        SubCommand::New { port } => {
-            info!("Starting new cluster on {}", port);
-            let _barge = Barge::new(1, port);
+        SubCommand::New { addr } => {
+            let addr = addr.parse()?;
+            info!("Starting new cluster at {}", addr);
+            let _barge = Barge::new(addr);
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(60)).await;
             }
         }
-        SubCommand::Join { port, join_addr } => {
-            let join_addr: SocketAddrV4 = join_addr.parse()?;
-            info!("Joining cluster at {} from {}", join_addr, port);
-            let barge = Barge::join(1, port, join_addr);
+        SubCommand::Join { addr, join_addr } => {
+            let addr = addr.parse()?;
+            let join_addr = join_addr.parse()?;
+            info!("Joining cluster at {} from {}", join_addr, addr);
+            let barge = Barge::join(addr, vec![join_addr]);
+            // let num = 10_000;
             let num = 10;
             let proposals = (0..num).map(|_| barge.propose(b"Hello, world!".to_vec()));
             let start = Instant::now();

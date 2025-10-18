@@ -1,3 +1,5 @@
+use std::net::Ipv4Addr;
+use std::net::SocketAddrV4;
 use std::sync::Arc;
 
 use bytes::Bytes;
@@ -12,14 +14,16 @@ use warp::http::StatusCode;
 
 #[derive(Parser)]
 struct Args {
+    #[arg(short = 'p', default_value = "3030")]
+    port: u16,
     #[command(subcommand)]
     command: SubCommand,
 }
 
 #[derive(Subcommand)]
 enum SubCommand {
-    New { port: u16 },
-    Join { port: u16, join_addr: String },
+    New { addr: String },
+    Join { addr: String, join_addr: String },
 }
 
 #[derive(Serialize)]
@@ -34,10 +38,16 @@ struct Problem {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let args = Args::parse();
     tracing_subscriber::fmt().init();
 
-    // Create a local single-node barge cluster on port 7000
-    let barge = Arc::new(Barge::new(1, 7000));
+    let barge = match args.command {
+        SubCommand::New { addr } => Barge::new(addr.parse()?),
+        SubCommand::Join { addr, join_addr } => {
+            Barge::join(addr.parse()?, vec![join_addr.parse()?])
+        }
+    };
+    let barge = Arc::new(barge);
 
     let barge_filter = warp::any().map(move || barge.clone());
 
@@ -47,11 +57,9 @@ async fn main() -> anyhow::Result<()> {
         .and(barge_filter.clone())
         .and_then(|body: Bytes, barge: Arc<Barge>| async move {
             let data = body.to_vec();
-            match barge.propose(data).await {
+            match barge.propose(data.clone()).await {
                 Ok(()) => {
-                    let resp = Success {
-                        data: "ok".to_string(),
-                    };
+                    let resp = Success { data };
                     info!("Proposal accepted");
                     let json = warp::reply::json(&resp);
                     Ok::<_, warp::Rejection>(
@@ -75,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
 
     let routes = propose;
 
-    println!("Listening on http://127.0.0.1:3030");
-    warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
+    let addr = SocketAddrV4::new(Ipv4Addr::LOCALHOST, args.port);
+    warp::serve(routes).run(addr).await;
     Ok(())
 }

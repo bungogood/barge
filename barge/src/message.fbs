@@ -4,17 +4,51 @@ struct Uuid {
   bytes:[ubyte:16];
 }
 
+struct NodeDetails {
+    uuid:Uuid;
+    ip:uint32;
+    port:uint16;
+}
+
 union Event {
     AppendEntriesReq,
     AppendEntriesRes,
     ElectionReq,
-    ElectionRes
+    ElectionRes,
+    JoinReq,
+    JoinRes
+}
+
+table JoinReq {
+    prev_index:uint64;
+    prev_term:uint64;
+    node:NodeDetails;
+}
+
+table JoinRes {
+    success:bool;
+    leader:NodeDetails;
+    message:string;
+}
+
+table Command {
+    data:[ubyte];
+}
+
+table MembershipChange {
+    new_members:[NodeDetails];
+    removed_members:[Uuid];
+}
+
+union Entry {
+    Command,
+    MembershipChange
 }
 
 table LogEntry {
     index:uint64;
     term:uint64;
-    data:[ubyte]; // there are 2 types of data: command or configuration change
+    data:Entry;
 }
 
 table AppendEntriesReq {
@@ -34,7 +68,7 @@ table AppendEntriesRes {
 
 table ElectionReq {
     term:uint64;
-    candidate_id:uint64;
+    candidate_id:Uuid;
     prev_index:uint64;
     prev_term:uint64;
 }
@@ -45,7 +79,7 @@ table ElectionRes {
 }
 
 table Message {
-    sender:uint64;
+    sender:Uuid;
     timestamp:int64;
     event:Event;
 }
