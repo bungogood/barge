@@ -1,7 +1,8 @@
-use crate::{Proposal, fb, message_generated::barge::IndexEntry};
+use crate::{Proposal, fb};
 
 use flatbuffers::Vector;
 use memmap2::{MmapMut, MmapOptions};
+use std::ops::{Deref, DerefMut};
 use std::slice;
 use std::{
     fs::{self, File, OpenOptions},
@@ -18,94 +19,38 @@ const DATA_FILE: &str = "data.bin";
 const IE: usize = size_of::<fb::IndexEntry>();
 
 pub struct LogStore {
-    pub metadata: fb::Metadata,
-    metadata_mmap: MmapMut,
+    metadata: MmapMetadata,
     index_log: MmapLog,
     data_log: MmapLog,
 }
 
 impl LogStore {
-    pub fn new(dir: &PathBuf, id: u16) -> anyhow::Result<Self> {
-        let mut store = Self::open_mmaps(dir, true)
-            .map_err(|e| anyhow::anyhow!("failed to create log: {:?}", e))?;
-        store.metadata.set_id(id);
-        store.write_metadata();
+    pub fn init(dir: &PathBuf, create_new: bool) -> io::Result<Self> {
+        if create_new {
+            fs::create_dir_all(dir)?;
+        }
+
+        let metadata = MmapMetadata::init(dir.join(METADATA_FILE), create_new)?;
+        let index_log = MmapLog::init(dir.join(INDEX_FILE), create_new)?;
+        let data_log = MmapLog::init(dir.join(DATA_FILE), create_new)?;
+
+        let mut store = Self {
+            metadata,
+            index_log,
+            data_log,
+        };
+
+        store.set_mmap_ptrs();
         Ok(store)
     }
 
-    pub fn load(dir: &PathBuf) -> anyhow::Result<Self> {
-        Self::open_mmaps(dir, false).map_err(|e| anyhow::anyhow!("failed to create log: {:?}", e))
-    }
-
-    fn open_mmaps(dir: &PathBuf, create_new: bool) -> io::Result<Self> {
-        fs::create_dir_all(dir)?;
-
-        let (metadata_mmap, metadata_file) = Self::open_mmap_file(
-            dir.join(METADATA_FILE),
-            create_new,
-            Some(size_of::<fb::Metadata>()),
-        )?;
-
-        let metadata = fb::Metadata(
-            metadata_mmap[..]
-                .try_into()
-                .expect("Metadata File Corupted"),
-        );
-
-        let index_ptr = metadata.append_index() as usize * IE;
-
-        let index_log = if create_new {
-            MmapLog::new(dir.join(INDEX_FILE))?
-        } else {
-            MmapLog::open(dir.join(INDEX_FILE), index_ptr)?
-        };
-
-        let data_ptr = if metadata.append_index() == 0 {
-            0
-        } else {
-            let index_last = (metadata.append_index() - 1) as usize * IE;
-            let buf = index_log.get_fixed::<IE>(index_last).unwrap();
-            let last_entry = fb::IndexEntry(*buf);
-            last_entry.offset() + last_entry.size() as u64
-        };
-
-        let data_log = if create_new {
-            MmapLog::new(dir.join(DATA_FILE))?
-        } else {
-            MmapLog::open(dir.join(DATA_FILE), data_ptr as usize)?
-        };
-
-        Ok(Self {
-            metadata,
-            metadata_mmap,
-            index_log,
-            data_log,
-        })
-    }
-
-    fn open_mmap_file(
-        path: impl AsRef<Path>,
-        create_new: bool,
-        len: Option<usize>,
-    ) -> io::Result<(MmapMut, File)> {
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create_new(create_new)
-            .open(path)?;
-
-        if let Some(len) = len {
-            file.set_len(len as u64)?;
+    fn set_mmap_ptrs(&mut self) {
+        let index_ptr = self.metadata.append_index() as usize * IE;
+        self.index_log.set_ptr(index_ptr);
+        if let Some(last) = self.get_index(self.metadata.append_index() - 1) {
+            let data_ptr = last.offset() as usize + last.size() as usize;
+            self.data_log.set_ptr(data_ptr);
         }
-
-        let mmap = unsafe { MmapMut::map_mut(&file)? };
-
-        Ok((mmap, file))
-    }
-
-    fn write_metadata(&mut self) {
-        self.metadata_mmap.copy_from_slice(&self.metadata.0);
-        self.metadata_mmap.flush().unwrap(); // durable write
     }
 
     pub fn append_entries<'a>(
@@ -114,21 +59,21 @@ impl LogStore {
         data: &[u8],
     ) -> io::Result<()> {
         assert!(!entires.is_empty(), "Appending Empty Entries");
+        let next_append_index = self.append_index() + entires.len() as u64;
         self.index_log.extend_from_slice(entires.bytes())?;
         self.data_log.extend_from_slice(data)?;
         self.index_log.flush()?;
         self.data_log.flush()?;
-        self.metadata
-            .set_append_index(self.append_index() + entires.len() as u64);
-        self.write_metadata();
-        Ok(())
+        self.metadata.set_append_index(next_append_index);
+        self.metadata.flush()
     }
 
     pub fn append_proposals(
         &mut self,
         proposals: &Vec<Proposal>,
-    ) -> io::Result<(&[IndexEntry], &[u8])> {
+    ) -> io::Result<(&[fb::IndexEntry], &[u8])> {
         let offset = self.append_index();
+        let next_append_index = offset + proposals.len() as u64;
         let mut data_offset = self.data_log.ptr;
         info!(
             prev_index = offset,
@@ -155,14 +100,13 @@ impl LogStore {
         }
         self.index_log.flush()?;
         self.data_log.flush()?;
-        self.metadata
-            .set_append_index(self.append_index() + proposals.len() as u64);
-        self.write_metadata();
+        self.metadata.set_append_index(next_append_index);
+        self.metadata.flush()?;
 
         Ok(self.get_entries(offset, proposals.len() as u64).unwrap())
     }
 
-    pub fn commit_entries(&mut self, index: u64) {
+    pub fn commit_entries(&mut self, index: u64) -> io::Result<()> {
         let prev_commit = self.metadata.commit_index();
         info!(%prev_commit, commit_index = index, append_index = self.append_index(), "Committing");
         let (entries, data) = self
@@ -176,36 +120,44 @@ impl LogStore {
             info!(?entry, %data, "Commiting");
         }
         self.metadata.set_commit_index(index);
-        self.write_metadata();
+        self.metadata.flush()
     }
 
-    pub fn start_election(&mut self) {
-        self.metadata.set_term(self.term() + 1);
-        self.metadata.set_voted_for(self.id());
+    pub fn start_election(&mut self) -> io::Result<()> {
+        let next_term = self.term() + 1;
+        let vote = self.id();
+        self.metadata.set_term(next_term);
+        self.metadata.set_voted_for(vote);
         self.metadata.set_role(fb::Role::Candidate);
-        self.write_metadata();
+        self.metadata.flush()
     }
 
-    pub fn vote_for(&mut self, term: u64, candidate: u16) {
+    pub fn vote_for(&mut self, term: u64, candidate: u16) -> io::Result<()> {
         if self.role() == fb::Role::Leader || self.role() == fb::Role::Candidate {
             self.metadata.set_role(fb::Role::Follower);
         }
         self.metadata.set_term(term);
         self.metadata.set_voted_for(candidate);
-        self.write_metadata();
+        self.metadata.flush()
     }
 
-    pub fn new_term(&mut self, term: u64) {
+    pub fn new_term(&mut self, term: u64) -> io::Result<()> {
         if self.role() == fb::Role::Leader || self.role() == fb::Role::Candidate {
             self.metadata.set_role(fb::Role::Follower);
         }
         self.metadata.set_term(term);
-        self.write_metadata();
+        self.metadata.flush()
     }
 
-    pub fn become_learner(&mut self) {
+    pub fn become_learner(&mut self) -> io::Result<()> {
         self.metadata.set_role(fb::Role::Learner);
-        self.write_metadata();
+        self.metadata.flush()
+    }
+
+    pub fn new_node(&mut self, id: u16, role: fb::Role) -> io::Result<()> {
+        self.metadata.set_id(id);
+        self.metadata.set_role(role);
+        self.metadata.flush()
     }
 
     pub fn id(&self) -> u16 {
@@ -232,6 +184,10 @@ impl LogStore {
         self.metadata.append_index()
     }
 
+    pub fn metadata(&self) -> &fb::Metadata {
+        &self.metadata
+    }
+
     pub fn prev_index_term(&self) -> (u64, u64) {
         match self.get_index(self.append_index()) {
             Some(entry) => (entry.index(), entry.term()),
@@ -239,26 +195,19 @@ impl LogStore {
         }
     }
 
-    fn extend_entry_mut<'a>(&'a mut self) -> io::Result<&'a mut fb::IndexEntry> {
-        let buf = self.index_log.extend_fixed_mut::<IE>()?;
-        Ok(unsafe { &mut *(buf.as_ptr() as *mut fb::IndexEntry) })
-    }
-
     fn get_index<'a>(&'a self, idx: u64) -> Option<&'a fb::IndexEntry> {
         if idx == 0 {
             return None;
         }
         let offset = (idx - 1) as usize * IE;
-        self.index_log
-            .get_fixed::<IE>(offset)
-            .map(|buf| unsafe { &*(buf.as_ptr() as *mut fb::IndexEntry) })
+        self.index_log.get_fixed::<IE>(offset).map(|buf| buf.into())
     }
 
     pub fn get_entries<'a>(
         &'a self,
         offset: u64,
         num: u64,
-    ) -> Option<(&'a [IndexEntry], &'a [u8])> {
+    ) -> Option<(&'a [fb::IndexEntry], &'a [u8])> {
         if offset + num > self.append_index() {
             return None;
         }
@@ -267,20 +216,33 @@ impl LogStore {
             (0, 0)
         } else {
             let first = self.get_index(offset).unwrap();
-            ((offset) as usize * IE, first.offset() as usize)
+            (offset as usize * IE, first.offset() as usize)
         };
 
-        let index_end = (offset + num) as usize * IE;
-        let index_bytes = &self.index_log.mmap[index_start..index_end];
+        let index_size = num as usize * IE;
+        let index_bytes = self
+            .index_log
+            .get(index_start, index_size)
+            .expect("Getting Logged Index Block");
+
         assert!(index_bytes.len() % IE == 0);
-        let index_ptr = index_bytes.as_ptr() as *const IndexEntry;
+        let index_ptr = index_bytes.as_ptr() as *const fb::IndexEntry;
         let index_len = index_bytes.len() / IE;
         let entires = unsafe { slice::from_raw_parts(index_ptr, index_len) };
 
-        let last = self.get_index(offset + num).unwrap();
-        let data_end = last.offset() as usize + last.size() as usize;
-        let data = &self.data_log.mmap[data_start..data_end];
+        let last = self.get_index(offset + num).expect("Getting Logged Index");
+        let data_size = last.offset() as usize + last.size() as usize - data_start as usize;
+        let data = self
+            .data_log
+            .get(data_start, data_size)
+            .expect("Getting Logged Data Block");
+
         Some((entires, data))
+    }
+
+    fn extend_entry_mut<'a>(&'a mut self) -> io::Result<&'a mut fb::IndexEntry> {
+        let buf = self.index_log.extend_fixed_mut::<IE>()?;
+        Ok(buf.into())
     }
 }
 
@@ -291,20 +253,15 @@ struct MmapLog {
 }
 
 impl MmapLog {
-    fn new(path: impl AsRef<Path>) -> io::Result<Self> {
+    fn init(path: impl AsRef<Path>, create_new: bool) -> io::Result<Self> {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
-            .create_new(true)
+            .create_new(create_new)
             .open(path)?;
+        file.lock()?;
         let mmap = unsafe { MmapMut::map_mut(&file)? };
         Ok(Self { file, mmap, ptr: 0 })
-    }
-
-    fn open(path: impl AsRef<Path>, ptr: usize) -> io::Result<Self> {
-        let file = OpenOptions::new().read(true).write(true).open(path)?;
-        let mmap = unsafe { MmapMut::map_mut(&file)? };
-        Ok(Self { file, mmap, ptr })
     }
 
     fn flush(&self) -> io::Result<()> {
@@ -325,14 +282,14 @@ impl MmapLog {
     }
 
     fn get<'a>(&'a self, offset: usize, size: usize) -> Option<&'a [u8]> {
-        if offset + size > self.mmap.len() {
+        if offset + size > self.ptr {
             return None;
         }
         Some(&self.mmap[offset..offset + size])
     }
 
     fn get_fixed<'a, const N: usize>(&'a self, offset: usize) -> Option<&'a [u8; N]> {
-        if offset + N > self.mmap.len() {
+        if offset + N > self.ptr {
             return None;
         }
         self.mmap[offset..offset + N].try_into().ok()
@@ -361,6 +318,10 @@ impl MmapLog {
         Ok(buf)
     }
 
+    fn set_ptr(&mut self, ptr: usize) {
+        self.ptr = ptr;
+    }
+
     // fn get_fixed_mut<'a, const N: usize>(&'a mut self, offset: usize) -> Option<&'a mut [u8; N]> {
     //     if offset + N > self.mmap.len() {
     //         return None;
@@ -371,4 +332,56 @@ impl MmapLog {
     //     let ptr = self.mmap.as_mut_ptr();
     //     unsafe { Some(&mut *(ptr.add(offset) as *mut [u8; N])) }
     // }
+}
+
+pub struct MmapMetadata {
+    mmap: MmapMut,
+    metadata: fb::Metadata,
+}
+
+impl Deref for MmapMetadata {
+    type Target = fb::Metadata;
+    fn deref(&self) -> &Self::Target {
+        &self.metadata
+    }
+}
+
+impl DerefMut for MmapMetadata {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.metadata
+    }
+}
+
+impl MmapMetadata {
+    pub fn init(path: impl AsRef<Path>, create_new: bool) -> io::Result<Self> {
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(create_new)
+            .open(path)?;
+        file.set_len(size_of::<fb::Metadata>() as u64)?;
+        file.lock()?;
+        let mmap = unsafe { MmapMut::map_mut(&file)? };
+        let mmap_ptr = mmap.as_ptr() as *const fb::Metadata;
+        let metadata = unsafe { *mmap_ptr };
+        Ok(Self { mmap, metadata })
+    }
+
+    pub fn flush(&self) -> io::Result<()> {
+        self.mmap.flush()
+    }
+}
+
+impl<'a> From<&'a mut [u8; IE]> for &'a mut fb::IndexEntry {
+    fn from(buf: &'a mut [u8; IE]) -> Self {
+        let buf_ptr = buf.as_mut_ptr() as *mut fb::IndexEntry;
+        unsafe { &mut *buf_ptr }
+    }
+}
+
+impl From<&[u8; IE]> for &fb::IndexEntry {
+    fn from(buf: &[u8; IE]) -> Self {
+        let buf_ptr = buf.as_ptr() as *const fb::IndexEntry;
+        unsafe { &*buf_ptr }
+    }
 }

@@ -206,20 +206,25 @@ impl<'a> BargeCore<'a> {
         let nodes = BTreeMap::from_iter(
             config.bootstrap_nodes.iter().map(|&addr| (addr, 0u64)), // next index starts at 0
         );
-        // let role = if nodes.is_empty() {
-        //     fb::Role::Leader
-        // } else {
-        //     fb::Role::Pending
-        // };
-        let store = match LogStore::load(&config.dir) {
+
+        let store = match LogStore::init(&config.dir, false) {
             Ok(store) => {
-                info!("Using exsiting LogStore: {:?}", store.metadata);
+                info!("Using exsiting LogStore: {:?}", store.metadata());
                 store
             }
             Err(_) => {
-                let id = config.id.unwrap_or(0xFFFF);
+                let mut store =
+                    LogStore::init(&config.dir, true).expect("failed to create new store");
                 info!("Creating new LogStore");
-                LogStore::new(&config.dir, id).unwrap()
+                let id = config.id.unwrap_or(0xFFFF);
+                let role = if nodes.is_empty() {
+                    fb::Role::Leader
+                } else {
+                    fb::Role::Pending
+                };
+                store.new_node(id, role).expect("failed to set metadata");
+                store
+                // LogStore::new(&config.dir, id).unwrap()
             }
         };
 
@@ -306,7 +311,7 @@ impl<'a> BargeCore<'a> {
 
     async fn start_election(&mut self, socket: &UdpSocket) -> anyhow::Result<()> {
         self.votes_received = 1;
-        self.store.start_election();
+        self.store.start_election()?;
         info!("Becoming candidate for term {}", self.store.term());
         let election_req = fb::ElectionReq::create(
             &mut self.builder,
@@ -387,7 +392,7 @@ impl<'a> BargeCore<'a> {
         let req = msg.event_as_election_req().unwrap();
         let vote_granted = if self.store.term() < req.term() {
             info!(%addr, term = req.term(), "Updating term from ElectionReq");
-            self.store.vote_for(req.term(), req.candidate_id());
+            self.store.vote_for(req.term(), req.candidate_id())?;
             self.election_deadline = Some(self.consts.rand_election_deadline());
             true
         } else {
@@ -417,7 +422,7 @@ impl<'a> BargeCore<'a> {
             return Ok(());
         } else if self.store.term() < res.term() {
             info!(%addr, term = res.term(), "Updating term from ElectionRes");
-            self.store.new_term(res.term());
+            self.store.new_term(res.term())?;
             self.election_deadline = Some(self.consts.rand_election_deadline());
             return Ok(());
         } else if self.store.term() > res.term() {
@@ -445,7 +450,7 @@ impl<'a> BargeCore<'a> {
             success = false;
         } else if self.store.term() < req.term() {
             info!(%addr, term = req.term(), "Updating term from AppendEntriesReq");
-            self.store.new_term(req.term());
+            self.store.new_term(req.term())?;
         }
 
         // TODO might need to unset the previous one
@@ -494,7 +499,7 @@ impl<'a> BargeCore<'a> {
                 if let Some(inflight) = self.inflight.get_mut(&i) {
                     inflight.count += 1;
                     if inflight.count >= quorum {
-                        self.store.commit_entries(i as u64);
+                        self.store.commit_entries(i as u64)?;
                         let notify = std::mem::replace(&mut inflight.notify, None);
                         if let Some(notify) = notify {
                             info!("Proposal for index {} committed", i);
@@ -554,7 +559,7 @@ impl<'a> BargeCore<'a> {
         let res = msg.event_as_join_res().unwrap();
         if res.success() {
             info!(%addr, "Accepted as Join Learner");
-            self.store.become_learner();
+            self.store.become_learner()?;
         } else {
             warn!(%addr, "Join Request Failed");
         }
@@ -592,7 +597,7 @@ impl<'a> BargeCore<'a> {
         self.build_message(fb::Event::AppendEntriesReq, req.as_union_value());
 
         if self.nodes.is_empty() {
-            self.store.commit_entries(self.store.append_index());
+            self.store.commit_entries(self.store.append_index())?;
             for proposal in proposals.iter_mut() {
                 let notify = std::mem::replace(&mut proposal.notify, None);
                 if let Some(notify) = notify {
