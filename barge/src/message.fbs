@@ -1,7 +1,16 @@
 namespace Barge;
 
+enum Role: uint16 {
+    Follower,
+    Leader,
+    Candidate,
+    Learner,
+    Pending,
+}
+
 struct Metadata {
     id: uint16;
+    role: Role;
     voted_for: uint16; // 0xFFFF is None
     term: uint64;
     commit_index: uint64;
@@ -11,9 +20,10 @@ struct Metadata {
 struct IndexEntry {
     index: uint64;
     term: uint64;
+    sender: uint16;
+    control: bool;
     offset: uint64;
     size: uint32;
-    sender: uint32;
 }
 
 struct NodeDetails {
@@ -48,22 +58,13 @@ table ControlEntry {
     removed_members: [uint32];
 }
 
-// Meta data about each entry in AppendEntriesReq
-struct LogEntry {
-    index: uint64;
-    term: uint64;
-    control: bool;
-    offset: uint32;
-    size: uint32;
-}
-
 table AppendEntriesReq {
     term: uint64;
     commit_index: uint64;
     prev_index: uint64;
     prev_term: uint64;
-    entries: [LogEntry];
-    data: [ubyte];
+    entries: [IndexEntry] (required);
+    data: [ubyte] (required);
 }
 
 table AppendEntriesRes {
