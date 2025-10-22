@@ -9,8 +9,7 @@ enum Role: uint16 {
 }
 
 struct Metadata {
-    id: uint16;
-    role: Role;
+    promoted: bool;
     voted_for: uint16; // 0xFFFF is None
     term: uint64;
     commit_index: uint64;
@@ -27,9 +26,10 @@ struct IndexEntry {
 }
 
 struct NodeDetails {
-    id:uint16;
-    ip:uint32;
-    port:uint16;
+    id: uint16;
+    ip: uint32;
+    port: uint16;
+    promoted: bool;
 }
 
 union Event {
@@ -47,15 +47,35 @@ table JoinReq {
     node: NodeDetails (required);
 }
 
+table JoinAck {
+    pending: bool; // False if not the leader
+    leader: NodeDetails;
+}
+
 table JoinRes {
-    success: bool;
-    leader: NodeDetails (required);
-    message: string;
+    id: uint16;
+}
+
+table AddNode {
+    node: NodeDetails (required);
+}
+
+table PromoteNode {
+    id: uint16;
+}
+
+table RemoveNode {
+    id: uint16;
+}
+
+union ControlMessage {
+    AddNode,
+    PromoteNode,
+    RemoveNode
 }
 
 table ControlEntry {
-    new_members: [NodeDetails];
-    removed_members: [uint32];
+    control: ControlMessage (required);
 }
 
 table AppendEntriesReq {

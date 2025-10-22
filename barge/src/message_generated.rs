@@ -242,6 +242,111 @@ pub mod barge {
     impl flatbuffers::SimpleToVerifyInSlice for Event {}
     pub struct EventUnionTableOffset {}
 
+    #[deprecated(
+        since = "2.0.0",
+        note = "Use associated constants instead. This will no longer be generated in 2021."
+    )]
+    pub const ENUM_MIN_CONTROL_MESSAGE: u8 = 0;
+    #[deprecated(
+        since = "2.0.0",
+        note = "Use associated constants instead. This will no longer be generated in 2021."
+    )]
+    pub const ENUM_MAX_CONTROL_MESSAGE: u8 = 3;
+    #[deprecated(
+        since = "2.0.0",
+        note = "Use associated constants instead. This will no longer be generated in 2021."
+    )]
+    #[allow(non_camel_case_types)]
+    pub const ENUM_VALUES_CONTROL_MESSAGE: [ControlMessage; 4] = [
+        ControlMessage::NONE,
+        ControlMessage::AddNode,
+        ControlMessage::PromoteNode,
+        ControlMessage::RemoveNode,
+    ];
+
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+    #[repr(transparent)]
+    pub struct ControlMessage(pub u8);
+    #[allow(non_upper_case_globals)]
+    impl ControlMessage {
+        pub const NONE: Self = Self(0);
+        pub const AddNode: Self = Self(1);
+        pub const PromoteNode: Self = Self(2);
+        pub const RemoveNode: Self = Self(3);
+
+        pub const ENUM_MIN: u8 = 0;
+        pub const ENUM_MAX: u8 = 3;
+        pub const ENUM_VALUES: &'static [Self] = &[
+            Self::NONE,
+            Self::AddNode,
+            Self::PromoteNode,
+            Self::RemoveNode,
+        ];
+        /// Returns the variant's name or "" if unknown.
+        pub fn variant_name(self) -> Option<&'static str> {
+            match self {
+                Self::NONE => Some("NONE"),
+                Self::AddNode => Some("AddNode"),
+                Self::PromoteNode => Some("PromoteNode"),
+                Self::RemoveNode => Some("RemoveNode"),
+                _ => None,
+            }
+        }
+    }
+    impl core::fmt::Debug for ControlMessage {
+        fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+            if let Some(name) = self.variant_name() {
+                f.write_str(name)
+            } else {
+                f.write_fmt(format_args!("<UNKNOWN {:?}>", self.0))
+            }
+        }
+    }
+    impl<'a> flatbuffers::Follow<'a> for ControlMessage {
+        type Inner = Self;
+        #[inline]
+        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+            let b = flatbuffers::read_scalar_at::<u8>(buf, loc);
+            Self(b)
+        }
+    }
+
+    impl flatbuffers::Push for ControlMessage {
+        type Output = ControlMessage;
+        #[inline]
+        unsafe fn push(&self, dst: &mut [u8], _written_len: usize) {
+            flatbuffers::emplace_scalar::<u8>(dst, self.0);
+        }
+    }
+
+    impl flatbuffers::EndianScalar for ControlMessage {
+        type Scalar = u8;
+        #[inline]
+        fn to_little_endian(self) -> u8 {
+            self.0.to_le()
+        }
+        #[inline]
+        #[allow(clippy::wrong_self_convention)]
+        fn from_little_endian(v: u8) -> Self {
+            let b = u8::from_le(v);
+            Self(b)
+        }
+    }
+
+    impl<'a> flatbuffers::Verifiable for ControlMessage {
+        #[inline]
+        fn run_verifier(
+            v: &mut flatbuffers::Verifier,
+            pos: usize,
+        ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+            use self::flatbuffers::Verifiable;
+            u8::run_verifier(v, pos)
+        }
+    }
+
+    impl flatbuffers::SimpleToVerifyInSlice for ControlMessage {}
+    pub struct ControlMessageUnionTableOffset {}
+
     // struct Metadata, aligned to 8
     #[repr(transparent)]
     #[derive(Clone, Copy, PartialEq)]
@@ -254,8 +359,7 @@ pub mod barge {
     impl core::fmt::Debug for Metadata {
         fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
             f.debug_struct("Metadata")
-                .field("id", &self.id())
-                .field("role", &self.role())
+                .field("promoted", &self.promoted())
                 .field("voted_for", &self.voted_for())
                 .field("term", &self.term())
                 .field("commit_index", &self.commit_index())
@@ -309,16 +413,14 @@ pub mod barge {
     impl<'a> Metadata {
         #[allow(clippy::too_many_arguments)]
         pub fn new(
-            id: u16,
-            role: Role,
+            promoted: bool,
             voted_for: u16,
             term: u64,
             commit_index: u64,
             append_index: u64,
         ) -> Self {
             let mut s = Self([0; 32]);
-            s.set_id(id);
-            s.set_role(role);
+            s.set_promoted(promoted);
             s.set_voted_for(voted_for);
             s.set_term(term);
             s.set_commit_index(commit_index);
@@ -326,8 +428,8 @@ pub mod barge {
             s
         }
 
-        pub fn id(&self) -> u16 {
-            let mut mem = core::mem::MaybeUninit::<<u16 as EndianScalar>::Scalar>::uninit();
+        pub fn promoted(&self) -> bool {
+            let mut mem = core::mem::MaybeUninit::<<bool as EndianScalar>::Scalar>::uninit();
             // Safety:
             // Created from a valid Table for this object
             // Which contains a valid value in this slot
@@ -335,13 +437,13 @@ pub mod barge {
                 core::ptr::copy_nonoverlapping(
                     self.0[0..].as_ptr(),
                     mem.as_mut_ptr() as *mut u8,
-                    core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
+                    core::mem::size_of::<<bool as EndianScalar>::Scalar>(),
                 );
                 mem.assume_init()
             })
         }
 
-        pub fn set_id(&mut self, x: u16) {
+        pub fn set_promoted(&mut self, x: bool) {
             let x_le = x.to_little_endian();
             // Safety:
             // Created from a valid Table for this object
@@ -350,36 +452,7 @@ pub mod barge {
                 core::ptr::copy_nonoverlapping(
                     &x_le as *const _ as *const u8,
                     self.0[0..].as_mut_ptr(),
-                    core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
-                );
-            }
-        }
-
-        pub fn role(&self) -> Role {
-            let mut mem = core::mem::MaybeUninit::<<Role as EndianScalar>::Scalar>::uninit();
-            // Safety:
-            // Created from a valid Table for this object
-            // Which contains a valid value in this slot
-            EndianScalar::from_little_endian(unsafe {
-                core::ptr::copy_nonoverlapping(
-                    self.0[2..].as_ptr(),
-                    mem.as_mut_ptr() as *mut u8,
-                    core::mem::size_of::<<Role as EndianScalar>::Scalar>(),
-                );
-                mem.assume_init()
-            })
-        }
-
-        pub fn set_role(&mut self, x: Role) {
-            let x_le = x.to_little_endian();
-            // Safety:
-            // Created from a valid Table for this object
-            // Which contains a valid value in this slot
-            unsafe {
-                core::ptr::copy_nonoverlapping(
-                    &x_le as *const _ as *const u8,
-                    self.0[2..].as_mut_ptr(),
-                    core::mem::size_of::<<Role as EndianScalar>::Scalar>(),
+                    core::mem::size_of::<<bool as EndianScalar>::Scalar>(),
                 );
             }
         }
@@ -391,7 +464,7 @@ pub mod barge {
             // Which contains a valid value in this slot
             EndianScalar::from_little_endian(unsafe {
                 core::ptr::copy_nonoverlapping(
-                    self.0[4..].as_ptr(),
+                    self.0[2..].as_ptr(),
                     mem.as_mut_ptr() as *mut u8,
                     core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
                 );
@@ -407,7 +480,7 @@ pub mod barge {
             unsafe {
                 core::ptr::copy_nonoverlapping(
                     &x_le as *const _ as *const u8,
-                    self.0[4..].as_mut_ptr(),
+                    self.0[2..].as_mut_ptr(),
                     core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
                 );
             }
@@ -775,6 +848,7 @@ pub mod barge {
                 .field("id", &self.id())
                 .field("ip", &self.ip())
                 .field("port", &self.port())
+                .field("promoted", &self.promoted())
                 .finish()
         }
     }
@@ -823,11 +897,12 @@ pub mod barge {
 
     impl<'a> NodeDetails {
         #[allow(clippy::too_many_arguments)]
-        pub fn new(id: u16, ip: u32, port: u16) -> Self {
+        pub fn new(id: u16, ip: u32, port: u16, promoted: bool) -> Self {
             let mut s = Self([0; 12]);
             s.set_id(id);
             s.set_ip(ip);
             s.set_port(port);
+            s.set_promoted(promoted);
             s
         }
 
@@ -914,6 +989,35 @@ pub mod barge {
                     &x_le as *const _ as *const u8,
                     self.0[8..].as_mut_ptr(),
                     core::mem::size_of::<<u16 as EndianScalar>::Scalar>(),
+                );
+            }
+        }
+
+        pub fn promoted(&self) -> bool {
+            let mut mem = core::mem::MaybeUninit::<<bool as EndianScalar>::Scalar>::uninit();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            EndianScalar::from_little_endian(unsafe {
+                core::ptr::copy_nonoverlapping(
+                    self.0[10..].as_ptr(),
+                    mem.as_mut_ptr() as *mut u8,
+                    core::mem::size_of::<<bool as EndianScalar>::Scalar>(),
+                );
+                mem.assume_init()
+            })
+        }
+
+        pub fn set_promoted(&mut self, x: bool) {
+            let x_le = x.to_little_endian();
+            // Safety:
+            // Created from a valid Table for this object
+            // Which contains a valid value in this slot
+            unsafe {
+                core::ptr::copy_nonoverlapping(
+                    &x_le as *const _ as *const u8,
+                    self.0[10..].as_mut_ptr(),
+                    core::mem::size_of::<<bool as EndianScalar>::Scalar>(),
                 );
             }
         }
@@ -1077,6 +1181,137 @@ pub mod barge {
             ds.finish()
         }
     }
+    pub enum JoinAckOffset {}
+    #[derive(Copy, Clone, PartialEq)]
+
+    pub struct JoinAck<'a> {
+        pub _tab: flatbuffers::Table<'a>,
+    }
+
+    impl<'a> flatbuffers::Follow<'a> for JoinAck<'a> {
+        type Inner = JoinAck<'a>;
+        #[inline]
+        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+            Self {
+                _tab: flatbuffers::Table::new(buf, loc),
+            }
+        }
+    }
+
+    impl<'a> JoinAck<'a> {
+        pub const VT_PENDING: flatbuffers::VOffsetT = 4;
+        pub const VT_LEADER: flatbuffers::VOffsetT = 6;
+
+        #[inline]
+        pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+            JoinAck { _tab: table }
+        }
+        #[allow(unused_mut)]
+        pub fn create<
+            'bldr: 'args,
+            'args: 'mut_bldr,
+            'mut_bldr,
+            A: flatbuffers::Allocator + 'bldr,
+        >(
+            _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+            args: &'args JoinAckArgs<'args>,
+        ) -> flatbuffers::WIPOffset<JoinAck<'bldr>> {
+            let mut builder = JoinAckBuilder::new(_fbb);
+            if let Some(x) = args.leader {
+                builder.add_leader(x);
+            }
+            builder.add_pending(args.pending);
+            builder.finish()
+        }
+
+        #[inline]
+        pub fn pending(&self) -> bool {
+            // Safety:
+            // Created from valid Table for this object
+            // which contains a valid value in this slot
+            unsafe {
+                self._tab
+                    .get::<bool>(JoinAck::VT_PENDING, Some(false))
+                    .unwrap()
+            }
+        }
+        #[inline]
+        pub fn leader(&self) -> Option<&'a NodeDetails> {
+            // Safety:
+            // Created from valid Table for this object
+            // which contains a valid value in this slot
+            unsafe { self._tab.get::<NodeDetails>(JoinAck::VT_LEADER, None) }
+        }
+    }
+
+    impl flatbuffers::Verifiable for JoinAck<'_> {
+        #[inline]
+        fn run_verifier(
+            v: &mut flatbuffers::Verifier,
+            pos: usize,
+        ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+            use self::flatbuffers::Verifiable;
+            v.visit_table(pos)?
+                .visit_field::<bool>("pending", Self::VT_PENDING, false)?
+                .visit_field::<NodeDetails>("leader", Self::VT_LEADER, false)?
+                .finish();
+            Ok(())
+        }
+    }
+    pub struct JoinAckArgs<'a> {
+        pub pending: bool,
+        pub leader: Option<&'a NodeDetails>,
+    }
+    impl<'a> Default for JoinAckArgs<'a> {
+        #[inline]
+        fn default() -> Self {
+            JoinAckArgs {
+                pending: false,
+                leader: None,
+            }
+        }
+    }
+
+    pub struct JoinAckBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+        fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+        start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+    }
+    impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> JoinAckBuilder<'a, 'b, A> {
+        #[inline]
+        pub fn add_pending(&mut self, pending: bool) {
+            self.fbb_
+                .push_slot::<bool>(JoinAck::VT_PENDING, pending, false);
+        }
+        #[inline]
+        pub fn add_leader(&mut self, leader: &NodeDetails) {
+            self.fbb_
+                .push_slot_always::<&NodeDetails>(JoinAck::VT_LEADER, leader);
+        }
+        #[inline]
+        pub fn new(
+            _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+        ) -> JoinAckBuilder<'a, 'b, A> {
+            let start = _fbb.start_table();
+            JoinAckBuilder {
+                fbb_: _fbb,
+                start_: start,
+            }
+        }
+        #[inline]
+        pub fn finish(self) -> flatbuffers::WIPOffset<JoinAck<'a>> {
+            let o = self.fbb_.end_table(self.start_);
+            flatbuffers::WIPOffset::new(o.value())
+        }
+    }
+
+    impl core::fmt::Debug for JoinAck<'_> {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            let mut ds = f.debug_struct("JoinAck");
+            ds.field("pending", &self.pending());
+            ds.field("leader", &self.leader());
+            ds.finish()
+        }
+    }
     pub enum JoinResOffset {}
     #[derive(Copy, Clone, PartialEq)]
 
@@ -1095,9 +1330,7 @@ pub mod barge {
     }
 
     impl<'a> JoinRes<'a> {
-        pub const VT_SUCCESS: flatbuffers::VOffsetT = 4;
-        pub const VT_LEADER: flatbuffers::VOffsetT = 6;
-        pub const VT_MESSAGE: flatbuffers::VOffsetT = 8;
+        pub const VT_ID: flatbuffers::VOffsetT = 4;
 
         #[inline]
         pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -1111,50 +1344,19 @@ pub mod barge {
             A: flatbuffers::Allocator + 'bldr,
         >(
             _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
-            args: &'args JoinResArgs<'args>,
+            args: &'args JoinResArgs,
         ) -> flatbuffers::WIPOffset<JoinRes<'bldr>> {
             let mut builder = JoinResBuilder::new(_fbb);
-            if let Some(x) = args.message {
-                builder.add_message(x);
-            }
-            if let Some(x) = args.leader {
-                builder.add_leader(x);
-            }
-            builder.add_success(args.success);
+            builder.add_id(args.id);
             builder.finish()
         }
 
         #[inline]
-        pub fn success(&self) -> bool {
+        pub fn id(&self) -> u16 {
             // Safety:
             // Created from valid Table for this object
             // which contains a valid value in this slot
-            unsafe {
-                self._tab
-                    .get::<bool>(JoinRes::VT_SUCCESS, Some(false))
-                    .unwrap()
-            }
-        }
-        #[inline]
-        pub fn leader(&self) -> &'a NodeDetails {
-            // Safety:
-            // Created from valid Table for this object
-            // which contains a valid value in this slot
-            unsafe {
-                self._tab
-                    .get::<NodeDetails>(JoinRes::VT_LEADER, None)
-                    .unwrap()
-            }
-        }
-        #[inline]
-        pub fn message(&self) -> Option<&'a str> {
-            // Safety:
-            // Created from valid Table for this object
-            // which contains a valid value in this slot
-            unsafe {
-                self._tab
-                    .get::<flatbuffers::ForwardsUOffset<&str>>(JoinRes::VT_MESSAGE, None)
-            }
+            unsafe { self._tab.get::<u16>(JoinRes::VT_ID, Some(0)).unwrap() }
         }
     }
 
@@ -1166,30 +1368,18 @@ pub mod barge {
         ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
             use self::flatbuffers::Verifiable;
             v.visit_table(pos)?
-                .visit_field::<bool>("success", Self::VT_SUCCESS, false)?
-                .visit_field::<NodeDetails>("leader", Self::VT_LEADER, true)?
-                .visit_field::<flatbuffers::ForwardsUOffset<&str>>(
-                    "message",
-                    Self::VT_MESSAGE,
-                    false,
-                )?
+                .visit_field::<u16>("id", Self::VT_ID, false)?
                 .finish();
             Ok(())
         }
     }
-    pub struct JoinResArgs<'a> {
-        pub success: bool,
-        pub leader: Option<&'a NodeDetails>,
-        pub message: Option<flatbuffers::WIPOffset<&'a str>>,
+    pub struct JoinResArgs {
+        pub id: u16,
     }
-    impl<'a> Default for JoinResArgs<'a> {
+    impl<'a> Default for JoinResArgs {
         #[inline]
         fn default() -> Self {
-            JoinResArgs {
-                success: false,
-                leader: None, // required field
-                message: None,
-            }
+            JoinResArgs { id: 0 }
         }
     }
 
@@ -1199,19 +1389,8 @@ pub mod barge {
     }
     impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> JoinResBuilder<'a, 'b, A> {
         #[inline]
-        pub fn add_success(&mut self, success: bool) {
-            self.fbb_
-                .push_slot::<bool>(JoinRes::VT_SUCCESS, success, false);
-        }
-        #[inline]
-        pub fn add_leader(&mut self, leader: &NodeDetails) {
-            self.fbb_
-                .push_slot_always::<&NodeDetails>(JoinRes::VT_LEADER, leader);
-        }
-        #[inline]
-        pub fn add_message(&mut self, message: flatbuffers::WIPOffset<&'b str>) {
-            self.fbb_
-                .push_slot_always::<flatbuffers::WIPOffset<_>>(JoinRes::VT_MESSAGE, message);
+        pub fn add_id(&mut self, id: u16) {
+            self.fbb_.push_slot::<u16>(JoinRes::VT_ID, id, 0);
         }
         #[inline]
         pub fn new(
@@ -1226,7 +1405,6 @@ pub mod barge {
         #[inline]
         pub fn finish(self) -> flatbuffers::WIPOffset<JoinRes<'a>> {
             let o = self.fbb_.end_table(self.start_);
-            self.fbb_.required(o, JoinRes::VT_LEADER, "leader");
             flatbuffers::WIPOffset::new(o.value())
         }
     }
@@ -1234,9 +1412,329 @@ pub mod barge {
     impl core::fmt::Debug for JoinRes<'_> {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
             let mut ds = f.debug_struct("JoinRes");
-            ds.field("success", &self.success());
-            ds.field("leader", &self.leader());
-            ds.field("message", &self.message());
+            ds.field("id", &self.id());
+            ds.finish()
+        }
+    }
+    pub enum AddNodeOffset {}
+    #[derive(Copy, Clone, PartialEq)]
+
+    pub struct AddNode<'a> {
+        pub _tab: flatbuffers::Table<'a>,
+    }
+
+    impl<'a> flatbuffers::Follow<'a> for AddNode<'a> {
+        type Inner = AddNode<'a>;
+        #[inline]
+        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+            Self {
+                _tab: flatbuffers::Table::new(buf, loc),
+            }
+        }
+    }
+
+    impl<'a> AddNode<'a> {
+        pub const VT_NODE: flatbuffers::VOffsetT = 4;
+
+        #[inline]
+        pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+            AddNode { _tab: table }
+        }
+        #[allow(unused_mut)]
+        pub fn create<
+            'bldr: 'args,
+            'args: 'mut_bldr,
+            'mut_bldr,
+            A: flatbuffers::Allocator + 'bldr,
+        >(
+            _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+            args: &'args AddNodeArgs<'args>,
+        ) -> flatbuffers::WIPOffset<AddNode<'bldr>> {
+            let mut builder = AddNodeBuilder::new(_fbb);
+            if let Some(x) = args.node {
+                builder.add_node(x);
+            }
+            builder.finish()
+        }
+
+        #[inline]
+        pub fn node(&self) -> &'a NodeDetails {
+            // Safety:
+            // Created from valid Table for this object
+            // which contains a valid value in this slot
+            unsafe {
+                self._tab
+                    .get::<NodeDetails>(AddNode::VT_NODE, None)
+                    .unwrap()
+            }
+        }
+    }
+
+    impl flatbuffers::Verifiable for AddNode<'_> {
+        #[inline]
+        fn run_verifier(
+            v: &mut flatbuffers::Verifier,
+            pos: usize,
+        ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+            use self::flatbuffers::Verifiable;
+            v.visit_table(pos)?
+                .visit_field::<NodeDetails>("node", Self::VT_NODE, true)?
+                .finish();
+            Ok(())
+        }
+    }
+    pub struct AddNodeArgs<'a> {
+        pub node: Option<&'a NodeDetails>,
+    }
+    impl<'a> Default for AddNodeArgs<'a> {
+        #[inline]
+        fn default() -> Self {
+            AddNodeArgs {
+                node: None, // required field
+            }
+        }
+    }
+
+    pub struct AddNodeBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+        fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+        start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+    }
+    impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> AddNodeBuilder<'a, 'b, A> {
+        #[inline]
+        pub fn add_node(&mut self, node: &NodeDetails) {
+            self.fbb_
+                .push_slot_always::<&NodeDetails>(AddNode::VT_NODE, node);
+        }
+        #[inline]
+        pub fn new(
+            _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+        ) -> AddNodeBuilder<'a, 'b, A> {
+            let start = _fbb.start_table();
+            AddNodeBuilder {
+                fbb_: _fbb,
+                start_: start,
+            }
+        }
+        #[inline]
+        pub fn finish(self) -> flatbuffers::WIPOffset<AddNode<'a>> {
+            let o = self.fbb_.end_table(self.start_);
+            self.fbb_.required(o, AddNode::VT_NODE, "node");
+            flatbuffers::WIPOffset::new(o.value())
+        }
+    }
+
+    impl core::fmt::Debug for AddNode<'_> {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            let mut ds = f.debug_struct("AddNode");
+            ds.field("node", &self.node());
+            ds.finish()
+        }
+    }
+    pub enum PromoteNodeOffset {}
+    #[derive(Copy, Clone, PartialEq)]
+
+    pub struct PromoteNode<'a> {
+        pub _tab: flatbuffers::Table<'a>,
+    }
+
+    impl<'a> flatbuffers::Follow<'a> for PromoteNode<'a> {
+        type Inner = PromoteNode<'a>;
+        #[inline]
+        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+            Self {
+                _tab: flatbuffers::Table::new(buf, loc),
+            }
+        }
+    }
+
+    impl<'a> PromoteNode<'a> {
+        pub const VT_ID: flatbuffers::VOffsetT = 4;
+
+        #[inline]
+        pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+            PromoteNode { _tab: table }
+        }
+        #[allow(unused_mut)]
+        pub fn create<
+            'bldr: 'args,
+            'args: 'mut_bldr,
+            'mut_bldr,
+            A: flatbuffers::Allocator + 'bldr,
+        >(
+            _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+            args: &'args PromoteNodeArgs,
+        ) -> flatbuffers::WIPOffset<PromoteNode<'bldr>> {
+            let mut builder = PromoteNodeBuilder::new(_fbb);
+            builder.add_id(args.id);
+            builder.finish()
+        }
+
+        #[inline]
+        pub fn id(&self) -> u16 {
+            // Safety:
+            // Created from valid Table for this object
+            // which contains a valid value in this slot
+            unsafe { self._tab.get::<u16>(PromoteNode::VT_ID, Some(0)).unwrap() }
+        }
+    }
+
+    impl flatbuffers::Verifiable for PromoteNode<'_> {
+        #[inline]
+        fn run_verifier(
+            v: &mut flatbuffers::Verifier,
+            pos: usize,
+        ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+            use self::flatbuffers::Verifiable;
+            v.visit_table(pos)?
+                .visit_field::<u16>("id", Self::VT_ID, false)?
+                .finish();
+            Ok(())
+        }
+    }
+    pub struct PromoteNodeArgs {
+        pub id: u16,
+    }
+    impl<'a> Default for PromoteNodeArgs {
+        #[inline]
+        fn default() -> Self {
+            PromoteNodeArgs { id: 0 }
+        }
+    }
+
+    pub struct PromoteNodeBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+        fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+        start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+    }
+    impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> PromoteNodeBuilder<'a, 'b, A> {
+        #[inline]
+        pub fn add_id(&mut self, id: u16) {
+            self.fbb_.push_slot::<u16>(PromoteNode::VT_ID, id, 0);
+        }
+        #[inline]
+        pub fn new(
+            _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+        ) -> PromoteNodeBuilder<'a, 'b, A> {
+            let start = _fbb.start_table();
+            PromoteNodeBuilder {
+                fbb_: _fbb,
+                start_: start,
+            }
+        }
+        #[inline]
+        pub fn finish(self) -> flatbuffers::WIPOffset<PromoteNode<'a>> {
+            let o = self.fbb_.end_table(self.start_);
+            flatbuffers::WIPOffset::new(o.value())
+        }
+    }
+
+    impl core::fmt::Debug for PromoteNode<'_> {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            let mut ds = f.debug_struct("PromoteNode");
+            ds.field("id", &self.id());
+            ds.finish()
+        }
+    }
+    pub enum RemoveNodeOffset {}
+    #[derive(Copy, Clone, PartialEq)]
+
+    pub struct RemoveNode<'a> {
+        pub _tab: flatbuffers::Table<'a>,
+    }
+
+    impl<'a> flatbuffers::Follow<'a> for RemoveNode<'a> {
+        type Inner = RemoveNode<'a>;
+        #[inline]
+        unsafe fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+            Self {
+                _tab: flatbuffers::Table::new(buf, loc),
+            }
+        }
+    }
+
+    impl<'a> RemoveNode<'a> {
+        pub const VT_ID: flatbuffers::VOffsetT = 4;
+
+        #[inline]
+        pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+            RemoveNode { _tab: table }
+        }
+        #[allow(unused_mut)]
+        pub fn create<
+            'bldr: 'args,
+            'args: 'mut_bldr,
+            'mut_bldr,
+            A: flatbuffers::Allocator + 'bldr,
+        >(
+            _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
+            args: &'args RemoveNodeArgs,
+        ) -> flatbuffers::WIPOffset<RemoveNode<'bldr>> {
+            let mut builder = RemoveNodeBuilder::new(_fbb);
+            builder.add_id(args.id);
+            builder.finish()
+        }
+
+        #[inline]
+        pub fn id(&self) -> u16 {
+            // Safety:
+            // Created from valid Table for this object
+            // which contains a valid value in this slot
+            unsafe { self._tab.get::<u16>(RemoveNode::VT_ID, Some(0)).unwrap() }
+        }
+    }
+
+    impl flatbuffers::Verifiable for RemoveNode<'_> {
+        #[inline]
+        fn run_verifier(
+            v: &mut flatbuffers::Verifier,
+            pos: usize,
+        ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+            use self::flatbuffers::Verifiable;
+            v.visit_table(pos)?
+                .visit_field::<u16>("id", Self::VT_ID, false)?
+                .finish();
+            Ok(())
+        }
+    }
+    pub struct RemoveNodeArgs {
+        pub id: u16,
+    }
+    impl<'a> Default for RemoveNodeArgs {
+        #[inline]
+        fn default() -> Self {
+            RemoveNodeArgs { id: 0 }
+        }
+    }
+
+    pub struct RemoveNodeBuilder<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> {
+        fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+        start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+    }
+    impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> RemoveNodeBuilder<'a, 'b, A> {
+        #[inline]
+        pub fn add_id(&mut self, id: u16) {
+            self.fbb_.push_slot::<u16>(RemoveNode::VT_ID, id, 0);
+        }
+        #[inline]
+        pub fn new(
+            _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a, A>,
+        ) -> RemoveNodeBuilder<'a, 'b, A> {
+            let start = _fbb.start_table();
+            RemoveNodeBuilder {
+                fbb_: _fbb,
+                start_: start,
+            }
+        }
+        #[inline]
+        pub fn finish(self) -> flatbuffers::WIPOffset<RemoveNode<'a>> {
+            let o = self.fbb_.end_table(self.start_);
+            flatbuffers::WIPOffset::new(o.value())
+        }
+    }
+
+    impl core::fmt::Debug for RemoveNode<'_> {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            let mut ds = f.debug_struct("RemoveNode");
+            ds.field("id", &self.id());
             ds.finish()
         }
     }
@@ -1258,8 +1756,8 @@ pub mod barge {
     }
 
     impl<'a> ControlEntry<'a> {
-        pub const VT_NEW_MEMBERS: flatbuffers::VOffsetT = 4;
-        pub const VT_REMOVED_MEMBERS: flatbuffers::VOffsetT = 6;
+        pub const VT_CONTROL_TYPE: flatbuffers::VOffsetT = 4;
+        pub const VT_CONTROL: flatbuffers::VOffsetT = 6;
 
         #[inline]
         pub unsafe fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
@@ -1273,42 +1771,83 @@ pub mod barge {
             A: flatbuffers::Allocator + 'bldr,
         >(
             _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr, A>,
-            args: &'args ControlEntryArgs<'args>,
+            args: &'args ControlEntryArgs,
         ) -> flatbuffers::WIPOffset<ControlEntry<'bldr>> {
             let mut builder = ControlEntryBuilder::new(_fbb);
-            if let Some(x) = args.removed_members {
-                builder.add_removed_members(x);
+            if let Some(x) = args.control {
+                builder.add_control(x);
             }
-            if let Some(x) = args.new_members {
-                builder.add_new_members(x);
-            }
+            builder.add_control_type(args.control_type);
             builder.finish()
         }
 
         #[inline]
-        pub fn new_members(&self) -> Option<flatbuffers::Vector<'a, NodeDetails>> {
+        pub fn control_type(&self) -> ControlMessage {
             // Safety:
             // Created from valid Table for this object
             // which contains a valid value in this slot
             unsafe {
                 self._tab
-                    .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, NodeDetails>>>(
-                        ControlEntry::VT_NEW_MEMBERS,
-                        None,
+                    .get::<ControlMessage>(
+                        ControlEntry::VT_CONTROL_TYPE,
+                        Some(ControlMessage::NONE),
                     )
+                    .unwrap()
             }
         }
         #[inline]
-        pub fn removed_members(&self) -> Option<flatbuffers::Vector<'a, u32>> {
+        pub fn control(&self) -> flatbuffers::Table<'a> {
             // Safety:
             // Created from valid Table for this object
             // which contains a valid value in this slot
             unsafe {
                 self._tab
-                    .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u32>>>(
-                        ControlEntry::VT_REMOVED_MEMBERS,
+                    .get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(
+                        ControlEntry::VT_CONTROL,
                         None,
                     )
+                    .unwrap()
+            }
+        }
+        #[inline]
+        #[allow(non_snake_case)]
+        pub fn control_as_add_node(&self) -> Option<AddNode<'a>> {
+            if self.control_type() == ControlMessage::AddNode {
+                let u = self.control();
+                // Safety:
+                // Created from a valid Table for this object
+                // Which contains a valid union in this slot
+                Some(unsafe { AddNode::init_from_table(u) })
+            } else {
+                None
+            }
+        }
+
+        #[inline]
+        #[allow(non_snake_case)]
+        pub fn control_as_promote_node(&self) -> Option<PromoteNode<'a>> {
+            if self.control_type() == ControlMessage::PromoteNode {
+                let u = self.control();
+                // Safety:
+                // Created from a valid Table for this object
+                // Which contains a valid union in this slot
+                Some(unsafe { PromoteNode::init_from_table(u) })
+            } else {
+                None
+            }
+        }
+
+        #[inline]
+        #[allow(non_snake_case)]
+        pub fn control_as_remove_node(&self) -> Option<RemoveNode<'a>> {
+            if self.control_type() == ControlMessage::RemoveNode {
+                let u = self.control();
+                // Safety:
+                // Created from a valid Table for this object
+                // Which contains a valid union in this slot
+                Some(unsafe { RemoveNode::init_from_table(u) })
+            } else {
+                None
             }
         }
     }
@@ -1321,30 +1860,45 @@ pub mod barge {
         ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
             use self::flatbuffers::Verifiable;
             v.visit_table(pos)?
-                .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, NodeDetails>>>(
-                    "new_members",
-                    Self::VT_NEW_MEMBERS,
-                    false,
-                )?
-                .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u32>>>(
-                    "removed_members",
-                    Self::VT_REMOVED_MEMBERS,
-                    false,
+                .visit_union::<ControlMessage, _>(
+                    "control_type",
+                    Self::VT_CONTROL_TYPE,
+                    "control",
+                    Self::VT_CONTROL,
+                    true,
+                    |key, v, pos| match key {
+                        ControlMessage::AddNode => v
+                            .verify_union_variant::<flatbuffers::ForwardsUOffset<AddNode>>(
+                                "ControlMessage::AddNode",
+                                pos,
+                            ),
+                        ControlMessage::PromoteNode => v
+                            .verify_union_variant::<flatbuffers::ForwardsUOffset<PromoteNode>>(
+                                "ControlMessage::PromoteNode",
+                                pos,
+                            ),
+                        ControlMessage::RemoveNode => v
+                            .verify_union_variant::<flatbuffers::ForwardsUOffset<RemoveNode>>(
+                                "ControlMessage::RemoveNode",
+                                pos,
+                            ),
+                        _ => Ok(()),
+                    },
                 )?
                 .finish();
             Ok(())
         }
     }
-    pub struct ControlEntryArgs<'a> {
-        pub new_members: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, NodeDetails>>>,
-        pub removed_members: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u32>>>,
+    pub struct ControlEntryArgs {
+        pub control_type: ControlMessage,
+        pub control: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
     }
-    impl<'a> Default for ControlEntryArgs<'a> {
+    impl<'a> Default for ControlEntryArgs {
         #[inline]
         fn default() -> Self {
             ControlEntryArgs {
-                new_members: None,
-                removed_members: None,
+                control_type: ControlMessage::NONE,
+                control: None, // required field
             }
         }
     }
@@ -1355,24 +1909,20 @@ pub mod barge {
     }
     impl<'a: 'b, 'b, A: flatbuffers::Allocator + 'a> ControlEntryBuilder<'a, 'b, A> {
         #[inline]
-        pub fn add_new_members(
-            &mut self,
-            new_members: flatbuffers::WIPOffset<flatbuffers::Vector<'b, NodeDetails>>,
-        ) {
-            self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
-                ControlEntry::VT_NEW_MEMBERS,
-                new_members,
+        pub fn add_control_type(&mut self, control_type: ControlMessage) {
+            self.fbb_.push_slot::<ControlMessage>(
+                ControlEntry::VT_CONTROL_TYPE,
+                control_type,
+                ControlMessage::NONE,
             );
         }
         #[inline]
-        pub fn add_removed_members(
+        pub fn add_control(
             &mut self,
-            removed_members: flatbuffers::WIPOffset<flatbuffers::Vector<'b, u32>>,
+            control: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>,
         ) {
-            self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
-                ControlEntry::VT_REMOVED_MEMBERS,
-                removed_members,
-            );
+            self.fbb_
+                .push_slot_always::<flatbuffers::WIPOffset<_>>(ControlEntry::VT_CONTROL, control);
         }
         #[inline]
         pub fn new(
@@ -1387,6 +1937,7 @@ pub mod barge {
         #[inline]
         pub fn finish(self) -> flatbuffers::WIPOffset<ControlEntry<'a>> {
             let o = self.fbb_.end_table(self.start_);
+            self.fbb_.required(o, ControlEntry::VT_CONTROL, "control");
             flatbuffers::WIPOffset::new(o.value())
         }
     }
@@ -1394,8 +1945,43 @@ pub mod barge {
     impl core::fmt::Debug for ControlEntry<'_> {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
             let mut ds = f.debug_struct("ControlEntry");
-            ds.field("new_members", &self.new_members());
-            ds.field("removed_members", &self.removed_members());
+            ds.field("control_type", &self.control_type());
+            match self.control_type() {
+                ControlMessage::AddNode => {
+                    if let Some(x) = self.control_as_add_node() {
+                        ds.field("control", &x)
+                    } else {
+                        ds.field(
+                            "control",
+                            &"InvalidFlatbuffer: Union discriminant does not match value.",
+                        )
+                    }
+                }
+                ControlMessage::PromoteNode => {
+                    if let Some(x) = self.control_as_promote_node() {
+                        ds.field("control", &x)
+                    } else {
+                        ds.field(
+                            "control",
+                            &"InvalidFlatbuffer: Union discriminant does not match value.",
+                        )
+                    }
+                }
+                ControlMessage::RemoveNode => {
+                    if let Some(x) = self.control_as_remove_node() {
+                        ds.field("control", &x)
+                    } else {
+                        ds.field(
+                            "control",
+                            &"InvalidFlatbuffer: Union discriminant does not match value.",
+                        )
+                    }
+                }
+                _ => {
+                    let x: Option<()> = None;
+                    ds.field("control", &x)
+                }
+            };
             ds.finish()
         }
     }
