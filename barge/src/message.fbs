@@ -38,7 +38,8 @@ union Event {
     ElectionReq,
     ElectionRes,
     JoinReq,
-    JoinRes
+    JoinAck,
+    JoinRes,
 }
 
 table JoinReq {

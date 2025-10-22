@@ -172,7 +172,7 @@ impl BargeConstants {
     }
 }
 
-struct BargeCore<'a> {
+struct BargeCore {
     append_buf: Vec<u8>,
     store: LogStore,
     bootstrap_nodes: Vec<SocketAddrV4>,
@@ -180,13 +180,13 @@ struct BargeCore<'a> {
     propose_tx: mpsc::Sender<Proposal>,
     propose_rx: mpsc::Receiver<Proposal>,
     addr: SocketAddrV4,
-    builder: flatbuffers::FlatBufferBuilder<'a>,
+    builder: flatbuffers::FlatBufferBuilder<'static>,
     inflight: BTreeMap<u64, Inflight>,
     votes_received: usize,
     election_deadline: Option<tokio::time::Instant>,
 }
 
-impl<'a> BargeCore<'a> {
+impl BargeCore {
     fn new(config: BargeConfig) -> Self {
         let consts = BargeConstants::new();
         let nodes = BTreeMap::from_iter(
@@ -199,16 +199,20 @@ impl<'a> BargeCore<'a> {
                 store
             }
             Err(_) => {
-                let mut store = LogStore::init(
-                    &config.dir,
-                    Some(fb::NodeDetails::new(
-                        config.id.unwrap_or(0),
-                        config.addr.ip().to_bits(),
-                        config.addr.port(),
-                        false,
-                    )),
-                )
-                .expect("failed to create new store");
+                let details = fb::NodeDetails::new(
+                    config.id.unwrap_or(0),
+                    config.addr.ip().to_bits(),
+                    config.addr.port(),
+                    false,
+                );
+                let mut store =
+                    LogStore::init(&config.dir, Some(details)).expect("failed to create new store");
+
+                if nodes.is_empty() {
+                    store.set_new_cluster_messages(details);
+                } else {
+                    store.become_pending();
+                }
                 info!("Creating new LogStore");
                 store
                 // LogStore::new(&config.dir, id).unwrap()
@@ -238,6 +242,7 @@ impl<'a> BargeCore<'a> {
         if self.store.role() != fb::Role::Pending {
             return Ok(());
         }
+        info!("Starting up as pending node, sending JoinReq to bootstrap nodes");
 
         let details = fb::NodeDetails::new(
             self.store.id(),
@@ -372,6 +377,7 @@ impl<'a> BargeCore<'a> {
             fb::Event::AppendEntriesReq => self.handle_append_entries_req(&msg, addr, skt).await?,
             fb::Event::AppendEntriesRes => self.handle_append_entries_res(&msg, addr)?,
             fb::Event::JoinReq => self.handle_join_req(&msg, addr, skt).await?,
+            fb::Event::JoinAck => self.handle_join_ack(&msg, addr).await?,
             fb::Event::JoinRes => self.handle_join_res(&msg, addr, skt).await?,
             _ => error!(%addr, ?event_type, "Unknown or unhandled message"),
         }
@@ -527,16 +533,16 @@ impl<'a> BargeCore<'a> {
         let node = req.node(); // TODO: This could error
 
         let pending = if !self.store.is_leader() {
-            info!(%addr, "Requested to join cluster");
+            info!(%addr, "Isnt Leader, Requested to join cluster");
             false
         } else if self.store.is_member(node) {
-            info!(%addr, "Requested to join cluster");
+            info!(%addr, "Already member, Requested to join cluster");
             true
         } else if self.store.is_pending(node) {
-            info!(%addr, "Requested to join cluster");
+            info!(%addr, "Is Pending, Requested to join cluster");
             true
         } else {
-            info!(%addr, "Requested to join cluster");
+            info!(%addr, "Submitting, Requested to join cluster");
             let add_node = fb::AddNode::create(
                 &mut self.builder,
                 &fb::AddNodeArgs {
@@ -571,7 +577,7 @@ impl<'a> BargeCore<'a> {
         );
         build_message(
             &mut self.builder,
-            fb::Event::JoinRes,
+            fb::Event::JoinAck,
             res.as_union_value(),
             self.store.id(),
         );
@@ -581,6 +587,16 @@ impl<'a> BargeCore<'a> {
             .unwrap();
         self.builder.reset();
 
+        Ok(())
+    }
+
+    async fn handle_join_ack(
+        &mut self,
+        msg: &fb::Message<'_>,
+        addr: SocketAddrV4,
+    ) -> anyhow::Result<()> {
+        let join_ack = msg.event_as_join_ack().unwrap();
+        info!(%addr, ?join_ack, "Received JoinAck");
         Ok(())
     }
 

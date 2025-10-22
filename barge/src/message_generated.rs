@@ -134,19 +134,20 @@ pub mod barge {
         since = "2.0.0",
         note = "Use associated constants instead. This will no longer be generated in 2021."
     )]
-    pub const ENUM_MAX_EVENT: u8 = 6;
+    pub const ENUM_MAX_EVENT: u8 = 7;
     #[deprecated(
         since = "2.0.0",
         note = "Use associated constants instead. This will no longer be generated in 2021."
     )]
     #[allow(non_camel_case_types)]
-    pub const ENUM_VALUES_EVENT: [Event; 7] = [
+    pub const ENUM_VALUES_EVENT: [Event; 8] = [
         Event::NONE,
         Event::AppendEntriesReq,
         Event::AppendEntriesRes,
         Event::ElectionReq,
         Event::ElectionRes,
         Event::JoinReq,
+        Event::JoinAck,
         Event::JoinRes,
     ];
 
@@ -161,10 +162,11 @@ pub mod barge {
         pub const ElectionReq: Self = Self(3);
         pub const ElectionRes: Self = Self(4);
         pub const JoinReq: Self = Self(5);
-        pub const JoinRes: Self = Self(6);
+        pub const JoinAck: Self = Self(6);
+        pub const JoinRes: Self = Self(7);
 
         pub const ENUM_MIN: u8 = 0;
-        pub const ENUM_MAX: u8 = 6;
+        pub const ENUM_MAX: u8 = 7;
         pub const ENUM_VALUES: &'static [Self] = &[
             Self::NONE,
             Self::AppendEntriesReq,
@@ -172,6 +174,7 @@ pub mod barge {
             Self::ElectionReq,
             Self::ElectionRes,
             Self::JoinReq,
+            Self::JoinAck,
             Self::JoinRes,
         ];
         /// Returns the variant's name or "" if unknown.
@@ -183,6 +186,7 @@ pub mod barge {
                 Self::ElectionReq => Some("ElectionReq"),
                 Self::ElectionRes => Some("ElectionRes"),
                 Self::JoinReq => Some("JoinReq"),
+                Self::JoinAck => Some("JoinAck"),
                 Self::JoinRes => Some("JoinRes"),
                 _ => None,
             }
@@ -2871,6 +2875,20 @@ pub mod barge {
 
         #[inline]
         #[allow(non_snake_case)]
+        pub fn event_as_join_ack(&self) -> Option<JoinAck<'a>> {
+            if self.event_type() == Event::JoinAck {
+                let u = self.event();
+                // Safety:
+                // Created from a valid Table for this object
+                // Which contains a valid union in this slot
+                Some(unsafe { JoinAck::init_from_table(u) })
+            } else {
+                None
+            }
+        }
+
+        #[inline]
+        #[allow(non_snake_case)]
         pub fn event_as_join_res(&self) -> Option<JoinRes<'a>> {
             if self.event_type() == Event::JoinRes {
                 let u = self.event();
@@ -2924,6 +2942,11 @@ pub mod barge {
                         Event::JoinReq => v
                             .verify_union_variant::<flatbuffers::ForwardsUOffset<JoinReq>>(
                                 "Event::JoinReq",
+                                pos,
+                            ),
+                        Event::JoinAck => v
+                            .verify_union_variant::<flatbuffers::ForwardsUOffset<JoinAck>>(
+                                "Event::JoinAck",
                                 pos,
                             ),
                         Event::JoinRes => v
@@ -3047,6 +3070,16 @@ pub mod barge {
                 }
                 Event::JoinReq => {
                     if let Some(x) = self.event_as_join_req() {
+                        ds.field("event", &x)
+                    } else {
+                        ds.field(
+                            "event",
+                            &"InvalidFlatbuffer: Union discriminant does not match value.",
+                        )
+                    }
+                }
+                Event::JoinAck => {
+                    if let Some(x) = self.event_as_join_ack() {
                         ds.field("event", &x)
                     } else {
                         ds.field(

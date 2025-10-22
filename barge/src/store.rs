@@ -105,6 +105,7 @@ pub struct LogStore {
     index_log: MmapLog,
     data_log: MmapLog,
     volatile: VolatileState,
+    builder: flatbuffers::FlatBufferBuilder<'static>,
 }
 
 impl LogStore {
@@ -131,12 +132,10 @@ impl LogStore {
             index_log,
             data_log,
             volatile,
+            builder: flatbuffers::FlatBufferBuilder::new(),
         };
 
         store.set_mmap_ptrs();
-        if let Some(details) = new_details {
-            store.set_new_cluster_messages(details)?;
-        }
         Ok(store)
     }
 
@@ -149,8 +148,9 @@ impl LogStore {
         }
     }
 
-    fn set_new_cluster_messages(&mut self, details: fb::NodeDetails) -> io::Result<()> {
+    pub fn set_new_cluster_messages(&mut self, details: fb::NodeDetails) -> io::Result<()> {
         let mut builder = flatbuffers::FlatBufferBuilder::new();
+        self.metadata.set_term(1);
         let mut num_messages = 0;
         let add_node = fb::AddNode::create(
             &mut builder,
@@ -164,6 +164,7 @@ impl LogStore {
             add_node.as_union_value(),
         )?;
         num_messages += 1;
+        self.metadata.set_append_index(num_messages);
         let promote_node =
             fb::PromoteNode::create(&mut builder, &fb::PromoteNodeArgs { id: details.id() });
         self.add_new_cluster_control(
@@ -176,8 +177,9 @@ impl LogStore {
         self.index_log.flush()?;
         self.metadata.set_append_index(num_messages);
         self.commit_entries(num_messages)?;
-        self.metadata.set_term(1);
         self.become_leader();
+        self.volatile.id = details.id();
+        self.volatile.leader = Some(details.id());
         self.metadata.flush()?;
         Ok(())
     }
@@ -321,6 +323,10 @@ impl LogStore {
         self.metadata.flush()
     }
 
+    pub fn become_pending(&mut self) {
+        self.volatile.role = fb::Role::Pending;
+    }
+
     pub fn become_leader(&mut self) {
         info!("Become Leader");
         self.volatile.role = fb::Role::Leader;
@@ -352,6 +358,7 @@ impl LogStore {
     }
 
     pub fn is_leader(&self) -> bool {
+        info!("{:?} {:?}", self.volatile.leader, self.volatile.id);
         match self.volatile.leader {
             Some(id) => self.volatile.id == id,
             None => false,
@@ -383,9 +390,24 @@ impl LogStore {
     }
 
     pub fn leader(&self) -> Option<fb::NodeDetails> {
-        self.volatile
-            .leader
-            .map(|l| self.volatile.nodes[&l].details())
+        match self.volatile.leader {
+            Some(id) => {
+                if self.volatile.id == id {
+                    Some(fb::NodeDetails::new(
+                        self.volatile.id,
+                        // self.volatile.addr.ip().to_bits(),
+                        // self.volatile.addr.port(),
+                        0,
+                        0,
+                        true,
+                    ))
+                } else {
+                    Some(self.volatile.nodes[&id].details())
+                }
+            }
+
+            None => None,
+        }
     }
 
     pub fn metadata(&self) -> &fb::Metadata {
